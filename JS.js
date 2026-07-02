@@ -334,18 +334,18 @@ function generateDMSetupInfo() {
 
     // 3. 角色信息结算
     if (liu) {
-        setupHtml += `<li><b>【刘云天】明面身份：</b>告知他他以为自己是 <span style="color: blue;">${liu.fakeRole}</span>。<i>（暗记：必定为不在场身份）</i></li>`;
+        setupHtml += `<li><b>【刘云天】明面身份：</b>告知他他以为自己是 <span style="color: blue;">${liu.fakeRole}</span>。<i></i></li>`;
     }
     if (zhang) {
-        setupHtml += `<li><b>【张伯鑫】明面身份：</b>告知他他以为自己是 <span style="color: red;">${zhang.fakeRole}</span>。<i>（暗记：必定为狼人身份，可能在场）</i></li>`;
+        setupHtml += `<li><b>【张伯鑫】明面身份：</b>告知他他以为自己是 <span style="color: red;">${zhang.fakeRole}</span>。<i></i></li>`;
     }
     
     const zhangShouChen = playersList.find(p => p.name === "张寿臣");
     if (zhangShouChen) {
         const inPlaySeenGood = playersList.filter(p => isSeenAsGood(p.name)).map(p => p.name);
         const outOfPlaySeenGood = seenAsGoodRoles.filter(r => !inPlaySeenGood.includes(r));
-        const bluffs = outOfPlaySeenGood.sort(() => 0.5 - Math.random()).slice(0, 3);
-        setupHtml += `<li><b>【张寿臣】假身份：</b>请告知三个不在场好人：<span style="color: blue; font-weight:bold;">${bluffs.join("、") || "无可用"}</span></li>`;
+        const bluffs = outOfPlaySeenGood.sort(() => 0.5 - Math.random()).slice(0, 2);
+        setupHtml += `<li><b>【张寿臣】假身份：</b>请告知两个不在场好人：<span style="color: blue; font-weight:bold;">${bluffs.join("、") || "无可用"}</span></li>`;
     }
 
     const daiZhiCheng = playersList.find(p => p.name === "戴志诚");
