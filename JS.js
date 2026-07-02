@@ -26,9 +26,13 @@ function init(){
     document.getElementById("initialWindow").hidden = false;
     document.getElementById("gameWindow").hidden = true;
     playerNum = parseInt(document.getElementById("PlayerNumber").value);
+    
     for (let i = 0; i < playerNum; i++){
-        playersList.push(new Player(i));
+        let p = new Player(i);
+        p.isConfused = false; // 新增：初始化每个玩家为清醒状态
+        playersList.push(p);
     }
+    
     funnyNum = (playerNum < 11) ? 2 : 3;
     comedyNum = playerNum - funnyNum - 1;
     distributeRoles();
@@ -70,20 +74,16 @@ function drawTabletop(){
 function distributeRoles(){
     let tempPlayerList = [];
 
-    // 分配张寿臣
     let boss = Math.floor((Math.random()*playerNum));
     tempPlayerList.push(boss);
     playersList[boss].setRole(new Role("张寿臣"));
     roleAndPlayerDic["张寿臣"] = playersList[boss];
 
-    // 分配搞笑阵营
     distributeRolesWithDetails(funnyNum, funnyRoles, tempPlayerList);
 
     let lowBias, highBias, clownBias;
     let lowNum,  highNum,  clownNum;
 
-    // 生成三个随机bias，范围是(-1/comedyNum, 1/comedyNum)，保证三个之和为0
-    // 还要保证强神数大于1
     do {
         highBias = Math.random() * (2 / comedyNum) - (1 / comedyNum);
         lowBias = Math.random() * (2 / comedyNum) - (1 / comedyNum);
@@ -95,31 +95,27 @@ function distributeRoles(){
         || lowNum < 0 || lowNum > lowComedyRoles.length
         || clownNum < 0 || clownNum > clownComedyRoles.length);
 
-    // 修正人数
     if (highNum + lowNum + clownNum != comedyNum){
         clownNum -= (highNum + lowNum + clownNum - comedyNum);
     }
+    
     tempPlayerList = distributeRolesWithDetails(highNum, highComedyRoles, tempPlayerList);
     tempPlayerList = distributeRolesWithDetails(lowNum, lowComedyRoles, tempPlayerList);
     tempPlayerList = distributeRolesWithDetails(clownNum, clownComedyRoles, tempPlayerList);
 }
 
-// roleNum: int             待分配角色数
-// roles: String[]          分配角色表（从全局角色表里选）
-// tempPlayerList: int[]    记录了已分配过角色的玩家的序号的表
-// party: int               1狼 0民
 function distributeRolesWithDetails(roleNum, roles, tempPlayerList){
     let tempList = [];
     for (let i = 0; i < roleNum; i ++){
         let index;
-        do{ // 抽角色
+        do{ 
             index = Math.floor((Math.random()*roles.length));
         } while (tempList.indexOf(index) != -1);
         tempList.push(index);
 
         let role = new Role(roles[index]);
         
-        do{ // 抽玩家
+        do{ 
             index = Math.floor((Math.random()*playerNum));
         } while (tempPlayerList.indexOf(index) != -1);
         tempPlayerList.push(index);
@@ -194,15 +190,12 @@ function changeRole(num, name){
 function beginNightZero(){
     document.getElementById("gameWindow").hidden = false;
     document.getElementById("initialWindow").hidden = true;
-    comedyState = [comedyNum, comedyNum, 0, 0]; // 总，在场，下场，死
+    comedyState = [comedyNum, comedyNum, 0, 0]; 
     funnyState = [funnyNum+1, funnyNum+1, 0, 0]; 
     setGameState();
 
-    let content = "";
-    let notice = giveNoticeBoard();
-    content += "公告板：场上存在" + notice + "对相邻搞笑阵营。<br>";
-
-    document.getElementById("gameInfo").innerHTML = content;
+    // 渲染整合了连坐公告和战力平衡的 DM 专属提示板
+    document.getElementById("gameInfo").innerHTML = generateDMSetupInfo();
 }
 
 function setGameState(){
@@ -216,114 +209,192 @@ function setGameState(){
     document.getElementById("funnyOut").innerHTML = funnyState[3];
 }
 
-function giveNoticeBoard(){
-    let result = 0;
-    let last = playersList[playerNum-1].party;
-    for(let i = 0; i < playerNum; i ++){
-        let now;
-        if (playersList[i].name == "大兵"){
-            now = 1;
-        } else if (playersList[i].name == "赵本山"){
-            now = 0;
-        } else {
-            now = playersList[i].party;
+// ==========================================
+// 核心模块：DM 提示面板生成（包含战力评估与连坐计算）
+// ==========================================
+function generateDMSetupInfo() {
+    let setupHtml = "<div style='border: 2px solid #333; padding: 15px; border-radius: 8px; background-color: #fafafa; margin-top: 15px;'>";
+    setupHtml += "<h3 style='text-align:center; color:#333; margin-top:0;'>🎭 DM 开局专属提示信息板</h3>";
+
+    // ------------------------------------------
+    // 0. 全局公告：连坐信息（还原保留你的规则）
+    // ------------------------------------------
+    let adjacentBadCount = 0;
+    // 提前拿到圆桌末位玩家，用于和0号玩家比较
+    let last = playersList[playerNum - 1];
+    let lastIsBad = (last.name === "大兵" || (last.party === 1 && last.name !== "赵本山"));
+    
+    for(let i = 0; i < playerNum; i++) {
+        let p = playersList[i];
+        let currentIsBad = (p.name === "大兵" || (p.party === 1 && p.name !== "赵本山"));
+        if (lastIsBad && currentIsBad) {
+            adjacentBadCount++;
         }
-        if (last == 1 && now == last){
-            result ++;
-        }
-        last = now;
+        lastIsBad = currentIsBad;
     }
-    return result;
-}
-// 假设已有的玩家数组是 players，每个元素包含 role (角色名), isBad (是否搞笑阵营) 等属性
-// 假设 allGoodRoles 是所有相声阵营角色的名称数组
-// 假设 allBadRoles 是所有搞笑阵营角色的名称数组
 
-function generateDMSetupInfo(players, allGoodRoles, allBadRoles) {
-    let setupHtml = "<h3>🎭 DM 开局专属提示信息（真实信息，无视混乱）</h3><ul style='line-height: 1.8;'>";
+    setupHtml += `<div style="background-color: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #90caf9;">
+        <strong>📢 全局公告 (白天公布)：</strong> 场上存在 <b style="color:red; font-size:1.2em;">${adjacentBadCount}</b> 对相邻搞笑阵营。<br>
+    </div>`;
 
-    // 1. 获取张寿臣/郭德纲的伪装身份 (3个不在场的相声阵营角色)
-    const evilBoss = players.find(p => p.role === "张寿臣" || p.role === "郭德纲");
-    if (evilBoss) {
-        // 找出当前在场的相声角色
-        const inPlayGoodRoles = players.filter(p => !p.isBad).map(p => p.role);
-        // 筛选出不在场的相声角色
-        const outOfPlayGoodRoles = allGoodRoles.filter(role => !inPlayGoodRoles.includes(role));
-        
-        // 随机抽取3个作为假身份 (打乱数组后取前3)
+    // ------------------------------------------
+    // 1. 战力评估系统 (三档动态调节)
+    // ------------------------------------------
+    const strongGoodRoles = ["戴志诚", "师胜杰", "苏文茂", "高峰", "侯宝林", "侯耀文", "马季"];
+    const strongBadRoles = ["曹云金", "赵本山", "椅子带王"];
+
+    let H = playersList.filter(p => p.party === 0 && strongGoodRoles.includes(p.name) && !p.isConfused).length;
+    let W = playersList.filter(p => p.party === 1 && strongBadRoles.includes(p.name)).length;
+
+    let gameBalanceState, balanceMessage;
+
+    if (H <= W) {
+        gameBalanceState = "WOLF_STRONG";
+        balanceMessage = "<span style='color: #d32f2f; font-weight:bold;'>【狼队强势】</span> 强行锁定信息靶子，发放<b>高交叉有效信息</b>。";
+    } else if (H >= W + 3) {
+        gameBalanceState = "HUMAN_STRONG";
+        balanceMessage = "<span style='color: #1976d2; font-weight:bold;'>【好人强势】</span> 发放<b>干扰/废信息</b>平衡局势，保护狼队。";
+    } else {
+        gameBalanceState = "BALANCED";
+        balanceMessage = "<span style='color: #388e3c; font-weight:bold;'>【势均力敌】</span> 将发放<b>正常随机信息</b>，不作干预。";
+    }
+
+    setupHtml += `<div style="background-color: #fff; padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px dashed #ccc; text-align: left;">
+        <strong>📊 后台战力探测：</strong> 相声清醒强神 <b>${H}</b> 名 vs 搞笑强力角色 <b>${W}</b> 名<br>
+        <strong>⚖️ 局势判定：</strong> ${balanceMessage}
+    </div>`;
+
+    // ------------------------------------------
+    // 2. 选取信息靶子
+    // ------------------------------------------
+    const smallWolves = playersList.filter(p => p.party === 1 && p.name !== "张寿臣");
+    const daBing = playersList.find(p => p.name === "大兵");
+    
+    let targetBadPlayer = null;
+    if (gameBalanceState === "WOLF_STRONG" && smallWolves.length > 0) {
+        targetBadPlayer = smallWolves[Math.floor(Math.random() * smallWolves.length)];
+    } else if (gameBalanceState === "HUMAN_STRONG") {
+        targetBadPlayer = daBing ? daBing : (smallWolves[Math.floor(Math.random() * smallWolves.length)] || playersList.find(p => p.party === 1));
+    }
+
+    setupHtml += "<ul style='line-height: 1.8; padding-left: 20px; text-align: left;'>";
+
+    // 用于计算不在场身份的全局池子
+    const allGoodRolesList = allRoles.filter(r => rolesPartyDict[r] === 0);
+    const allBadRolesList = allRoles.filter(r => rolesPartyDict[r] === 1);
+
+    // ------------------------------------------
+    // 3. 角色信息结算
+    // ------------------------------------------
+    
+    // (1) 张寿臣的假身份
+    const zhangShouChen = playersList.find(p => p.name === "张寿臣");
+    if (zhangShouChen) {
+        const inPlayGoodRoles = playersList.filter(p => p.party === 0).map(p => p.name);
+        const outOfPlayGoodRoles = allGoodRolesList.filter(role => !inPlayGoodRoles.includes(role));
         const bluffs = outOfPlayGoodRoles.sort(() => 0.5 - Math.random()).slice(0, 3);
-        setupHtml += `<li><b>【${evilBoss.role}】的假身份：</b>请告知他这三个不在场的好人身份：<span style="color: blue;">${bluffs.join("、")}</span></li>`;
+        setupHtml += `<li><b>【张寿臣】的假身份：</b>请告知三个不在场好人：<span style="color: blue; font-weight:bold;">${bluffs.join("、") || "无可用"}</span></li>`;
     }
 
-    // 2. 戴志诚信息：得知随机一名搞笑阵营角色在哪两名玩家之中
-    const daiZhiCheng = players.find(p => p.role === "戴志诚");
+    // (2) 戴志诚
+    const daiZhiCheng = playersList.find(p => p.name === "戴志诚");
     if (daiZhiCheng) {
-        const badPlayers = players.filter(p => p.isBad);
-        const randomBad = badPlayers[Math.floor(Math.random() * badPlayers.length)];
-        
-        const otherPlayers = players.filter(p => p !== randomBad && p.role !== "戴志诚");
-        const randomOther = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
-        
-        // 将两人位置打乱，防止固定顺序暴露谁是坏人
-        const targetPair = [randomBad, randomOther].sort(() => 0.5 - Math.random());
-        
-        setupHtml += `<li><b>【戴志诚】信息位：</b>请告知他，搞笑阵营的 <span style="color: red;">${randomBad.role}</span> 在 【${targetPair[0].id}号】与【${targetPair[1].id}号】玩家之中。</li>`;
+        if (daiZhiCheng.isConfused) {
+            const targetPair = playersList.filter(p => p.party === 0 && p.name !== "戴志诚").sort(() => 0.5 - Math.random()).slice(0, 2);
+            const fakeBadRole = allBadRolesList[Math.floor(Math.random() * allBadRolesList.length)];
+            setupHtml += `<li><b>【戴志诚】<span style="color: purple;">(已混乱)</span>：</b>假信息：搞笑阵营的 <span style="color: red;">${fakeBadRole}</span> 在 【${(targetPair[0]?.num + 1) || '?'}号】与【${(targetPair[1]?.num + 1) || '?'}号】之中。</li>`;
+        } else {
+            let actualBadPlayer = targetBadPlayer;
+            if (gameBalanceState === "BALANCED" && smallWolves.length > 0) {
+                actualBadPlayer = smallWolves[Math.floor(Math.random() * smallWolves.length)];
+            } else if (!actualBadPlayer) {
+                actualBadPlayer = playersList.find(p => p.party === 1);
+            }
+            
+            if (actualBadPlayer) {
+                let otherPlayerList = playersList.filter(p => p.num !== actualBadPlayer.num && p.name !== "戴志诚");
+                if (gameBalanceState === "WOLF_STRONG") {
+                    const knownGood = otherPlayerList.filter(p => p.party === 0 && p.name !== "大兵");
+                    if (knownGood.length > 0) otherPlayerList = knownGood;
+                }
+                const otherPlayer = otherPlayerList[Math.floor(Math.random() * otherPlayerList.length)];
+                const targetPair = [actualBadPlayer, otherPlayer].filter(Boolean).sort(() => 0.5 - Math.random());
+                setupHtml += `<li><b>【戴志诚】(清醒)：</b>真信息：搞笑阵营的 <span style="color: red;">${actualBadPlayer.name}</span> 在 【${targetPair[0].num + 1}号】与【${targetPair[1].num + 1}号】之中。</li>`;
+            }
+        }
     }
 
-    // 3. 师胜杰信息：左右各两名玩家里共有几位搞笑阵营玩家
-    const shiShengJie = players.find(p => p.role === "师胜杰");
+    // (3) 苏文茂
+    const suWenMao = playersList.find(p => p.name === "苏文茂");
+    if (suWenMao) {
+        if (suWenMao.isConfused) {
+            const allInPlayRoles = playersList.filter(p => p.name !== "苏文茂").map(p => p.name);
+            const allOutPlayRoles = allRoles.filter(r => !allInPlayRoles.includes(r) && r !== "苏文茂");
+            const fakeP1 = allInPlayRoles[Math.floor(Math.random() * allInPlayRoles.length)];
+            const fakeOutRoles = allOutPlayRoles.sort(() => 0.5 - Math.random()).slice(0, 3);
+            const fakeRoles = [fakeP1, ...fakeOutRoles].filter(Boolean).sort(() => 0.5 - Math.random());
+            setupHtml += `<li><b>【苏文茂】<span style="color: purple;">(已混乱)</span>：</b>假信息：告知这四个角色【${fakeRoles.join("、")}】。<br><span style="color: #666; font-size: 0.9em;"><i>（DM暗记：实际上只有 ${fakeP1} 1人在场，打破规则）</i></span></li>`;
+        } else {
+            let p1 = targetBadPlayer ? targetBadPlayer.name : null;
+            if (gameBalanceState === "BALANCED" && smallWolves.length > 0) {
+                p1 = smallWolves[Math.floor(Math.random() * smallWolves.length)].name;
+            } else if (!p1) {
+                const badList = playersList.filter(p => p.party === 1);
+                p1 = badList.length > 0 ? badList[0].name : "未知";
+            }
+
+            const inPlayGoodList = playersList.filter(p => p.party === 0 && p.name !== "苏文茂" && p.name !== p1);
+            let p2 = inPlayGoodList.length > 0 ? inPlayGoodList[Math.floor(Math.random() * inPlayGoodList.length)].name : "未知";
+
+            const inPlayRoles = playersList.map(p => p.name);
+            const outPlayBadList = allBadRolesList.filter(r => !inPlayRoles.includes(r));
+            const outPlayGoodList = allGoodRolesList.filter(r => !inPlayRoles.includes(r));
+            
+            let p3 = outPlayBadList.length > 0 ? outPlayBadList[Math.floor(Math.random() * outPlayBadList.length)] : "未知";
+            let p4 = outPlayGoodList.length > 0 ? outPlayGoodList[Math.floor(Math.random() * outPlayGoodList.length)] : "未知";
+
+            const suInfoRoles = [p1, p2, p3, p4].filter(r => r !== "未知").sort(() => 0.5 - Math.random());
+            
+            setupHtml += `<li><b>【苏文茂】(清醒)：</b>真信息：告知这四个角色【${suInfoRoles.join("、")}】。<br><span style="color: #666; font-size: 0.9em;"><i>（DM暗记：在场的是 ${p1} 和 ${p2}。</i></span>`;
+            if (gameBalanceState === "WOLF_STRONG") setupHtml += `<span style="color: #c62828; font-size: 0.9em; font-weight:bold;"><i>因扶持好人，此信息必定与戴志诚交叉指向 ${p1}）</i></span></li>`;
+            else setupHtml += `</li>`;
+        }
+    }
+
+    // (4) 师胜杰
+    const shiShengJie = playersList.find(p => p.name === "师胜杰");
     if (shiShengJie) {
-        const idx = players.indexOf(shiShengJie);
-        const len = players.length;
-        // 环形数组获取左右各两人
+        const idx = playersList.indexOf(shiShengJie);
+        const len = playersList.length;
         const neighbors = [
-            players[(idx - 1 + len) % len],
-            players[(idx - 2 + len) % len],
-            players[(idx + 1) % len],
-            players[(idx + 2) % len]
+            playersList[(idx - 1 + len) % len], playersList[(idx - 2 + len) % len],
+            playersList[(idx + 1) % len], playersList[(idx + 2) % len]
         ];
         
-        // 计算“视为”搞笑阵营的数量（需考虑大兵和赵本山的被动伪装）
-        let badCount = 0;
+        let realBadCount = 0;
         neighbors.forEach(p => {
-            if (p.role === "大兵") {
-                badCount++; // 大兵视为搞笑阵营
-            } else if (p.role === "赵本山") {
-                // 赵本山视为相声阵营，不加
-            } else if (p.isBad) {
-                badCount++;
-            }
+            if (p.name === "大兵" || (p.party === 1 && p.name !== "赵本山")) realBadCount++;
         });
-        
-        setupHtml += `<li><b>【师胜杰】信息位：</b>请告知他，他左右两边共4名玩家中，共有 <span style="color: red;">${badCount}</span> 位搞笑阵营玩家。</li>`;
+
+        if (shiShengJie.isConfused) {
+            let fakeCounts = [0, 1, 2, 3, 4].filter(num => num !== realBadCount);
+            let fakeCount = fakeCounts[Math.floor(Math.random() * fakeCounts.length)];
+            setupHtml += `<li><b>【师胜杰】<span style="color: purple;">(已混乱)</span>：</b>假信息：请告诉他错误数字 <span style="color: red; font-size: 1.2em; font-weight: bold;">${fakeCount}</span>。</li>`;
+        } else {
+            setupHtml += `<li><b>【师胜杰】(清醒)：</b>真信息：请告诉他真实数字 <span style="color: red; font-weight: bold;">${realBadCount}</span>。</li>`;
+        }
     }
 
-    // 4. 苏文茂信息：两名搞笑阵营和两名相声阵营，其中两人在场
-    const suWenMao = players.find(p => p.role === "苏文茂");
-    if (suWenMao) {
-        // 在场的 1搞笑 1相声
-        const inPlayBad = players.filter(p => p.isBad).map(p => p.role);
-        const inPlayGood = players.filter(p => !p.isBad && p.role !== "苏文茂").map(p => p.role);
-        
-        // 不在场的 1搞笑 1相声
-        const outPlayBad = allBadRoles.filter(role => !inPlayBad.includes(role));
-        const outPlayGood = allGoodRoles.filter(role => !inPlayGood.includes(role) && role !== "苏文茂");
-        
-        const p1 = inPlayBad[Math.floor(Math.random() * inPlayBad.length)];
-        const p2 = inPlayGood[Math.floor(Math.random() * inPlayGood.length)];
-        const p3 = outPlayBad[Math.floor(Math.random() * outPlayBad.length)];
-        const p4 = outPlayGood[Math.floor(Math.random() * outPlayGood.length)];
-        
-        const suInfoRoles = [p1, p2, p3, p4].sort(() => 0.5 - Math.random());
-        setupHtml += `<li><b>【苏文茂】信息位：</b>请告知他这四个角色：【${suInfoRoles.join("、")}】。<br><i>（DM暗记：其中 ${p1} 和 ${p2} 是在场玩家）</i></li>`;
-    }
-
-    // 5. 高峰信息：需要DM动态交互
-    const gaoFeng = players.find(p => p.role === "高峰");
+    // (5) 高峰
+    const gaoFeng = playersList.find(p => p.name === "高峰");
     if (gaoFeng) {
-        setupHtml += `<li><b>【高峰】信息位：</b>开局需等待高峰主动选择两名玩家，你需要告知他这两人的角色<br><i>（DM提示：至少告知一个正确的真实角色，你可以根据局势决定是否给一个假角色）。</i></li>`;
+        if (gaoFeng.isConfused) {
+            setupHtml += `<li><b>【高峰】<span style="color: purple;">(已混乱)</span>：</b>假信息：无论他选谁，全部告知<b>错误</b>的角色名。</li>`;
+        } else {
+            setupHtml += `<li><b>【高峰】(清醒)：</b>真信息：开局等待他选择。至少告知其中一人<b>正确</b>的真实角色。</li>`;
+        }
     }
 
-    setupHtml += "</ul>";
+    setupHtml += "</ul></div>";
     return setupHtml;
 }
