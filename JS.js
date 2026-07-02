@@ -75,3 +75,88 @@ function drawTabletop(){
         content += "background: " + backgroundColour[p.party] + "; ";
         content += "' class='playerNumber'>";
         content += (i+1) + "</div>";
+
+        content += "<div style = '";
+        content += "left: calc(" + (Math.sin(arc*i) * playerNum / 9) + " * 25% + 50% - 1.75rem); ";
+        content += "top: calc(" + (Math.cos(arc*i) * playerNum / 9) + " * 25% + 50% - 1.75rem); ";
+        content += "background: " + alivenessColour[p.aliveness] + "; ";
+        content += "color: " + backgroundColour[p.party] + "; ";
+        content += "' class='playerAvatar'>";
+        content += p.name + "</div>";
+    }
+    chart.innerHTML = content;
+}
+
+function distributeRoles(){
+    let tempPlayerList = [];
+
+    let boss = Math.floor((Math.random()*playerNum));
+    tempPlayerList.push(boss);
+    playersList[boss].setRole(new Role("张寿臣"));
+    roleAndPlayerDic["张寿臣"] = playersList[boss];
+
+    distributeRolesWithDetails(funnyNum, funnyRoles, tempPlayerList);
+
+    let lowBias, highBias, clownBias;
+    let lowNum,  highNum,  clownNum;
+
+    do {
+        highBias = Math.random() * (2 / comedyNum) - (1 / comedyNum);
+        lowBias = Math.random() * (2 / comedyNum) - (1 / comedyNum);
+        clownBias = - (lowBias + highBias);
+        highNum = Math.round(comedyNum * (highRate + highBias));
+        lowNum = Math.round(comedyNum * (lowRate + lowBias));
+        clownNum = Math.round(comedyNum * (clownRate + clownBias));
+    } while (highNum < 1 || highNum > highComedyRoles.length
+        || lowNum < 0 || lowNum > lowComedyRoles.length
+        || clownNum < 0 || clownNum > clownComedyRoles.length);
+
+    if (highNum + lowNum + clownNum != comedyNum){
+        clownNum -= (highNum + lowNum + clownNum - comedyNum);
+    }
+    
+    tempPlayerList = distributeRolesWithDetails(highNum, highComedyRoles, tempPlayerList);
+    tempPlayerList = distributeRolesWithDetails(lowNum, lowComedyRoles, tempPlayerList);
+    tempPlayerList = distributeRolesWithDetails(clownNum, clownComedyRoles, tempPlayerList);
+}
+
+function distributeRolesWithDetails(roleNum, roles, tempPlayerList){
+    let tempList = [];
+    for (let i = 0; i < roleNum; i ++){
+        let index;
+        do{ 
+            index = Math.floor((Math.random()*roles.length));
+        } while (tempList.indexOf(index) != -1);
+        tempList.push(index);
+
+        let role = new Role(roles[index]);
+        
+        do{ 
+            index = Math.floor((Math.random()*playerNum));
+        } while (tempPlayerList.indexOf(index) != -1);
+        tempPlayerList.push(index);
+
+        playersList[index].setRole(role);
+        roleAndPlayerDic[role] = playersList[index];
+    }
+    return tempPlayerList;
+}
+
+function displayTable(){
+    let button = document.getElementById("displayTable");
+    button.innerHTML = tableDisplayed ? "展示当前桌面" : "收起当前桌面";
+    let chart = document.getElementById("playerTableWindow");
+    chart.hidden = tableDisplayed;
+    if (!tableDisplayed) {
+        drawTabletop();
+    }
+    tableDisplayed = !tableDisplayed;
+}
+
+function drawStatusDiagram(){
+    let table = document.getElementById("tableDiv");
+    let changeList = "<option value='' selected='true'>不修改</option>";
+
+    for (let i = 0; i < allRoles.length; i ++){
+        if(roleAndPlayerDic[allRoles[i]] == undefined){
+            changeList += "<option value='" + allRoles[i] + "'>";
