@@ -236,7 +236,22 @@ function buildFakeInfoForRole(roleName) {
 }
 
 function autoGenerateSetupData() {
-    playersList.forEach(p => p.setupData = {});
+    // 每次生成前先重置所有人的状态
+    playersList.forEach(p => { p.setupData = {}; p.isConfused = false; });
+    
+    // ==========================================
+    // 新增：结算“椅子带王”的混乱状态
+    // ==========================================
+    let chair = playersList.find(p => p.name === "椅子带王");
+    if (chair) {
+        let idx = chair.num;
+        let left = playersList[(idx - 1 + playerNum) % playerNum];
+        let right = playersList[(idx + 1) % playerNum];
+        // 如果相邻玩家是相声阵营(好人)，则受到混乱影响
+        if (left.party === 0) left.isConfused = true;
+        if (right.party === 0) right.isConfused = true;
+    }
+
     const inPlayRoles = playersList.map(p => p.name);
     const outPlayRoles = allRoles.filter(r => !inPlayRoles.includes(r));
     const seenAsGoodRoles = allRoles.filter(isSeenAsGood);
@@ -258,7 +273,7 @@ function autoGenerateSetupData() {
         zhang.setupData.fakeRole = allBad.length > 0 ? allBad[Math.floor(Math.random() * allBad.length)] : "无";
     }
 
-    // 战力判定
+    // 战力判定 (强力好人如果在椅子旁边被混乱，战力自动失效，完美联动！)
     const strongGoodRoles = ["戴志诚", "师胜杰", "苏文茂", "高峰", "侯宝林", "侯耀文", "马季"];
     const strongBadRoles = ["曹云金", "赵本山", "椅子带王"];
     let H = playersList.filter(p => isSeenAsGood(p.name) && strongGoodRoles.includes(p.name) && !p.isConfused).length;
@@ -278,40 +293,53 @@ function autoGenerateSetupData() {
     else if (balState === "HUMAN_STRONG") target = daBing || smallWolves[0] || playersList.find(p => isSeenAsBad(p.name));
     else target = smallWolves[0] || playersList.find(p => isSeenAsBad(p.name));
 
-// 张寿臣假身份
+    // 张寿臣假身份
     let zsc = playersList.find(p => p.name === "张寿臣");
     if (zsc) {
-        // 从真实底牌为相声阵营中抽取：且不在场、且排除刘云天、且排除张伯鑫
-        let bluffPool = allRoles.filter(r => 
-            rolesPartyDict[r] === 0 && 
-            !inPlayRoles.includes(r) && 
-            r !== "刘云天" && 
-            r !== "张伯鑫"
-        );
+        let bluffPool = allRoles.filter(r => rolesPartyDict[r] === 0 && !inPlayRoles.includes(r) && r !== "刘云天" && r !== "张伯鑫");
         let bluffs = bluffPool.sort(() => 0.5 - Math.random()).slice(0, 2);
         zsc.setupData.b1 = bluffs[0] || "";
         zsc.setupData.b2 = bluffs[1] || "";
     }
+
     // 戴志诚
     let dai = playersList.find(p => p.name === "戴志诚");
     if (dai) {
-        let p1Num = 0, p2Num = 1, r = "未知";
-        if (target) {
-            r = target.name; p1Num = target.num;
-            let other = playersList.filter(p => p.num !== target.num && p.name !== "戴志诚")[0];
-            if(other) p2Num = other.num;
+        if (dai.isConfused) {
+            // 被混乱：随意塞个假身份和不在目标里的好人
+            let fakes = allRoles.filter(isSeenAsBad);
+            let pairs = playersList.filter(p => isSeenAsGood(p.name) && p.name !== "戴志诚").sort(() => 0.5 - Math.random()).slice(0, 2);
+            dai.setupData.info = { role: fakes[Math.floor(Math.random() * fakes.length)], p1: pairs[0]?.num||0, p2: pairs[1]?.num||1 };
+        } else {
+            // 清醒逻辑
+            let p1Num = 0, p2Num = 1, r = "未知";
+            if (target) {
+                r = target.name; p1Num = target.num;
+                let other = playersList.filter(p => p.num !== target.num && p.name !== "戴志诚")[0];
+                if(other) p2Num = other.num;
+            }
+            dai.setupData.info = { role: r, p1: p1Num, p2: p2Num };
         }
-        dai.setupData.info = { role: r, p1: p1Num, p2: p2Num };
     }
 
     // 苏文茂
     let su = playersList.find(p => p.name === "苏文茂");
     if (su) {
-        let p1 = target ? target.name : "未知";
-        let p2 = playersList.find(p => isSeenAsGood(p.name) && p.name !== "苏文茂" && p.name !== p1)?.name || "未知";
-        let outB = allRoles.filter(isSeenAsBad).find(r => !inPlayRoles.includes(r)) || "未知";
-        let outG = allRoles.filter(isSeenAsGood).find(r => !inPlayRoles.includes(r)) || "未知";
-        su.setupData.info = { r1: p1, r2: p2, r3: outB, r4: outG };
+        if (su.isConfused) {
+            // 被混乱：强行给1个在场 + 3个不在场 (制造假象)
+            let inP = playersList.filter(p => p.name !== "苏文茂").map(p => p.name);
+            let outP = allRoles.filter(r => !inPlayRoles.includes(r) && r !== "苏文茂");
+            let r1 = inP[Math.floor(Math.random() * inP.length)];
+            let outs = outP.sort(() => 0.5 - Math.random()).slice(0, 3);
+            su.setupData.info = { r1: r1, r2: outs[0]||"未知", r3: outs[1]||"未知", r4: outs[2]||"未知" };
+        } else {
+            // 清醒逻辑
+            let p1 = target ? target.name : "未知";
+            let p2 = playersList.find(p => isSeenAsGood(p.name) && p.name !== "苏文茂" && p.name !== p1)?.name || "未知";
+            let outB = allRoles.filter(isSeenAsBad).find(r => !inPlayRoles.includes(r)) || "未知";
+            let outG = allRoles.filter(isSeenAsGood).find(r => !inPlayRoles.includes(r)) || "未知";
+            su.setupData.info = { r1: p1, r2: p2, r3: outB, r4: outG };
+        }
     }
 
     // 师胜杰
@@ -320,10 +348,15 @@ function autoGenerateSetupData() {
         let idx = shi.num, len = playerNum;
         let nbs = [playersList[(idx - 1 + len) % len], playersList[(idx - 2 + len) % len], playersList[(idx + 1) % len], playersList[(idx + 2) % len]];
         let c = 0; nbs.forEach(p => { if(isSeenAsBad(p.name)) c++; });
-        shi.setupData.info = { count: c };
+        if (shi.isConfused) {
+            // 被混乱：避开真实数字，给个假的
+            let fakes = [0, 1, 2, 3, 4].filter(n => n !== c);
+            shi.setupData.info = { count: fakes[Math.floor(Math.random() * fakes.length)] };
+        } else {
+            shi.setupData.info = { count: c };
+        }
     }
 }
-
 // ==========================================
 // 前端渲染：完全下拉框化
 // ==========================================
@@ -348,13 +381,11 @@ function renderDMSetupInfo() {
         <span style="color:#666; font-size:0.9em;">(当前系统判定局势: <b>${window.globalBalanceState}</b>)</span>
     </div><ul style='line-height:2.2; padding-left:20px; text-align:left;'>`;
 
-    // 渲染刘云天与张伯鑫
     let liu = playersList.find(p => p.name === "刘云天");
     if (liu && liu.setupData) {
         let sel = makeSelect(rOpts, liu.setupData.fakeRole, `updateLiuFakeRole(this.value)`, "120px");
         html += `<li><b>【刘云天】明面身份:</b> 他以为自己是 ${sel} <i>(仅建议选不在场)</i>`;
         
-        // 若刘云天是信息位，渲染他的配套假信息编辑框
         if (liu.setupData.info) {
             let d = liu.setupData.info;
             html += `<br><span style="color:purple; margin-left:15px;">↳ 伪造开局信息：</span>`;
@@ -378,7 +409,6 @@ function renderDMSetupInfo() {
         html += `<li><b>【张伯鑫】明面身份:</b> 他以为自己是 ${sel} <i>(必须是搞笑阵营)</i></li>`;
     }
 
-    // 渲染张寿臣
     let zsc = playersList.find(p => p.name === "张寿臣");
     if (zsc && zsc.setupData) {
         let s1 = makeSelect(rOpts, zsc.setupData.b1, `updateSetup(${zsc.num}, 'b1', this.value)`);
@@ -386,39 +416,39 @@ function renderDMSetupInfo() {
         html += `<li><b>【张寿臣】假身份:</b> 告知两个好人：${s1} 和 ${s2}</li>`;
     }
 
-    // 渲染戴志诚
+    // 渲染各信息位 (带椅子混乱判定UI)
     let dai = playersList.find(p => p.name === "戴志诚");
     if (dai && dai.setupData && dai.setupData.info) {
         let d = dai.setupData.info;
-        let sRole = makeSelect(badOpts, d.role, `updateSetup(${dai.num}, 'role', this.value)`); // 等同于修改 d 会失效，因为引用的问题
+        let confStr = dai.isConfused ? "<span style='color:purple; font-weight:bold;'>(受椅子混乱)</span>" : "";
         let sP1 = makeSelect(pOpts, d.p1, `playersList[${dai.num}].setupData.info.p1 = parseInt(this.value)`);
         let sP2 = makeSelect(pOpts, d.p2, `playersList[${dai.num}].setupData.info.p2 = parseInt(this.value)`);
         let sRoleReal = makeSelect(badOpts, d.role, `playersList[${dai.num}].setupData.info.role = this.value`);
-        html += `<li><b>【戴志诚】信息:</b> 搞笑的 ${sRoleReal} 在 ${sP1} 与 ${sP2} 之中。</li>`;
+        html += `<li><b>【戴志诚】信息 ${confStr}:</b> 搞笑的 ${sRoleReal} 在 ${sP1} 与 ${sP2} 之中。</li>`;
     }
 
-    // 渲染苏文茂
     let su = playersList.find(p => p.name === "苏文茂");
     if (su && su.setupData && su.setupData.info) {
         let d = su.setupData.info;
+        let confStr = su.isConfused ? "<span style='color:purple; font-weight:bold;'>(受椅子混乱)</span>" : "";
         let htmlSu = "包含：" + makeSelect(rOpts, d.r1, `playersList[${su.num}].setupData.info.r1 = this.value`) + makeSelect(rOpts, d.r2, `playersList[${su.num}].setupData.info.r2 = this.value`) + makeSelect(rOpts, d.r3, `playersList[${su.num}].setupData.info.r3 = this.value`) + makeSelect(rOpts, d.r4, `playersList[${su.num}].setupData.info.r4 = this.value`);
-        html += `<li><b>【苏文茂】信息:</b> ${htmlSu}</li>`;
+        html += `<li><b>【苏文茂】信息 ${confStr}:</b> ${htmlSu}</li>`;
     }
 
-    // 渲染师胜杰
     let shi = playersList.find(p => p.name === "师胜杰");
     if (shi && shi.setupData && shi.setupData.info) {
+        let confStr = shi.isConfused ? "<span style='color:purple; font-weight:bold;'>(受椅子混乱)</span>" : "";
         let sC = makeSelect(countOpts, shi.setupData.info.count, `playersList[${shi.num}].setupData.info.count = parseInt(this.value)`);
-        html += `<li><b>【师胜杰】信息:</b> 告知左右共 ${sC} 位搞笑阵营。</li>`;
+        html += `<li><b>【师胜杰】信息 ${confStr}:</b> 告知左右共 ${sC} 位搞笑阵营。</li>`;
     }
 
-    // 高峰交互生成器
     let gf = playersList.find(p => p.name === "高峰");
     if (gf) {
+        let confStr = gf.isConfused ? "<span style='color:purple; font-weight:bold;'>(受椅子混乱)</span>" : "";
         let o = "<option value=''>选座号</option>";
         pOpts.forEach(opt => { if(opt.val !== gf.num) o += `<option value='${opt.val}'>${opt.text}</option>`; });
         html += `<li><div style="background:#fff; padding:8px; border:1px solid #ccc; border-radius:4px;">
-            <b>【高峰】动态生成器:</b> 目标1 <select id='gf_p1'>${o}</select> 目标2 <select id='gf_p2'>${o}</select>
+            <b>【高峰】动态生成器 ${confStr}:</b> 目标1 <select id='gf_p1'>${o}</select> 目标2 <select id='gf_p2'>${o}</select>
             <button onclick='calcGaoFeng()' style='margin-left:5px; padding:2px 8px; cursor:pointer;'>生成</button>
             <div id='gf_result' style='margin-top:5px; padding:5px; background:#f5f5f5;'><i>点击生成...</i></div>
         </div></li>`;
