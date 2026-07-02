@@ -180,7 +180,7 @@ window.updateLiuFakeRole = function(val) {
     if (!liu) return;
     liu.setupData.fakeRole = val;
     // 如果刘云天选了信息位，动态生成其专属假信息
-    if (["戴志诚", "苏文茂", "师胜杰"].includes(val)) {
+    if (["戴志诚", "苏文茂", "师胜杰", "高峰"].includes(val)) {
         liu.setupData.info = buildFakeInfoForRole(val);
     } else {
         liu.setupData.info = null;
@@ -232,6 +232,8 @@ function buildFakeInfoForRole(roleName) {
         info = { r1: arr[0], r2: arr[1], r3: arr[2], r4: arr[3] };
     } else if (roleName === "师胜杰") {
         info = { count: Math.floor(Math.random() * 4) };
+    } else if (roleName === "高峰") {
+        info = { p1: 0, p2: 1 }; // 为高峰初始化目标选择占位
     }
     return info;
 }
@@ -254,13 +256,14 @@ function autoGenerateSetupData() {
     const seenAsGoodRoles = allRoles.filter(isSeenAsGood);
     const inPlaySeenGood = playersList.filter(p => isSeenAsGood(p.name)).map(p => p.name);
 
-    // 刘云天明面身份
+    // 刘云天明面身份 (修正：排除张伯鑫)
     let liu = playersList.find(p => p.name === "刘云天");
     if (liu) {
-        let goodOut = outPlayRoles.filter(r => rolesPartyDict[r] === 0);
-        let role = goodOut.length > 0 ? goodOut[Math.floor(Math.random() * goodOut.length)] : outPlayRoles[0];
+        let goodOut = outPlayRoles.filter(r => rolesPartyDict[r] === 0 && r !== "张伯鑫");
+        let fallbackOut = outPlayRoles.filter(r => r !== "张伯鑫");
+        let role = goodOut.length > 0 ? goodOut[Math.floor(Math.random() * goodOut.length)] : (fallbackOut[0] || "无");
         liu.setupData.fakeRole = role;
-        if (["戴志诚", "苏文茂", "师胜杰"].includes(role)) liu.setupData.info = buildFakeInfoForRole(role);
+        if (["戴志诚", "苏文茂", "师胜杰", "高峰"].includes(role)) liu.setupData.info = buildFakeInfoForRole(role);
     }
 
     // 张伯鑫明面身份
@@ -290,7 +293,7 @@ function autoGenerateSetupData() {
     else if (balState === "HUMAN_STRONG") target = daBing || smallWolves[0] || playersList.find(p => isSeenAsBad(p.name));
     else target = smallWolves[0] || playersList.find(p => isSeenAsBad(p.name));
 
-    // 张寿臣假身份 (修正：真实底牌是好人，且排除大兵和刘云天张伯鑫)
+    // 张寿臣假身份
     let zsc = playersList.find(p => p.name === "张寿臣");
     if (zsc) {
         let bluffPool = allRoles.filter(r => rolesPartyDict[r] === 0 && !inPlayRoles.includes(r) && r !== "刘云天" && r !== "张伯鑫");
@@ -374,10 +377,11 @@ function renderDMSetupInfo() {
         <span style="color:#666; font-size:0.9em;">(当前系统判定局势: <b>${window.globalBalanceState}</b>)</span>
     </div><ul style='line-height:2.2; padding-left:20px; text-align:left;'>`;
 
+    // 渲染刘云天明面身份及交互框
     let liu = playersList.find(p => p.name === "刘云天");
     if (liu && liu.setupData) {
         let sel = makeSelect(rOpts, liu.setupData.fakeRole, `updateLiuFakeRole(this.value)`, "120px");
-        html += `<li><b>【刘云天】明面身份:</b> 他以为自己是 ${sel} <i>(仅建议选不在场)</i>`;
+        html += `<li><b>【刘云天】明面身份:</b> 他以为自己是 ${sel} <i>(仅建议选不在场，不会是张伯鑫)</i>`;
         
         if (liu.setupData.info) {
             let d = liu.setupData.info;
@@ -390,6 +394,13 @@ function renderDMSetupInfo() {
                 html += "包含：" + makeSelect(rOpts, d.r1, `updateLiuFakeInfo('r1', this.value)`) + makeSelect(rOpts, d.r2, `updateLiuFakeInfo('r2', this.value)`) + makeSelect(rOpts, d.r3, `updateLiuFakeInfo('r3', this.value)`) + makeSelect(rOpts, d.r4, `updateLiuFakeInfo('r4', this.value)`);
             } else if (liu.setupData.fakeRole === "师胜杰") {
                 html += "周围有 " + makeSelect(countOpts, d.count, `updateLiuFakeInfo('count', parseInt(this.value))`) + " 人";
+            } else if (liu.setupData.fakeRole === "高峰") {
+                // 刘云天专属的假高峰生成器
+                let o = "<option value=''>选座号</option>";
+                pOpts.forEach(opt => { if(opt.val !== liu.num) o += `<option value='${opt.val}'>${opt.text}</option>`; });
+                html += `目标1 <select id='liu_gf_p1'>${o}</select> 目标2 <select id='liu_gf_p2'>${o}</select>
+                <button onclick='calcLiuGaoFeng()' style='margin-left:5px; padding:2px 8px; cursor:pointer;'>生成假信息</button>
+                <span id='liu_gf_result' style='margin-left:10px; font-size:0.95em;'><i>点击生成...</i></span>`;
             }
         }
         html += `</li>`;
@@ -451,9 +462,29 @@ function renderDMSetupInfo() {
 }
 
 // ==========================================
-// 交互模块：高峰信息动态计算
+// 交互模块：刘云天假高峰信息动态计算
 // ==========================================
-function calcGaoFeng() {
+window.calcLiuGaoFeng = function() {
+    let p1_idx = document.getElementById('liu_gf_p1').value;
+    let p2_idx = document.getElementById('liu_gf_p2').value;
+    let res = document.getElementById('liu_gf_result');
+    
+    if (p1_idx === "" || p2_idx === "") { res.innerHTML = "<b style='color:red;'>❌ 请先选两名目标</b>"; return; }
+    if (p1_idx === p2_idx) { res.innerHTML = "<b style='color:red;'>❌ 须选不同玩家</b>"; return; }
+
+    let t1 = playersList[parseInt(p1_idx)], t2 = playersList[parseInt(p2_idx)];
+    const c = (r) => isSeenAsBad(r) ? "red" : "blue";
+
+    // 刘云天是假高峰，必定获得两个随机的假信息误导他
+    let fakes = allRoles.filter(r => r !== t1.name && r !== t2.name).sort(() => 0.5 - Math.random());
+    
+    res.innerHTML = `<span style='color:purple; font-weight:bold;'>(伪造-全假)</span> 【${t1.num+1}号是<b style='color:${c(fakes[0])}'>${fakes[0]}</b>, ${t2.num+1}号是<b style='color:${c(fakes[1])}'>${fakes[1]}</b>】`;
+};
+
+// ==========================================
+// 交互模块：真高峰信息动态计算
+// ==========================================
+window.calcGaoFeng = function() {
     let gf = playersList.find(p => p.name === "高峰");
     if (!gf) return;
     
@@ -466,7 +497,6 @@ function calcGaoFeng() {
     let t1 = playersList[parseInt(p1_idx)], t2 = playersList[parseInt(p2_idx)];
     const c = (r) => isSeenAsBad(r) ? "red" : "blue";
 
-    // 修正：受椅子混乱影响的高峰必定生成两套假信息
     if (gf.isConfused) {
         let fakes = allRoles.filter(r => r !== t1.name && r !== t2.name).sort(() => 0.5 - Math.random());
         res.innerHTML = `<span style='color:purple; font-weight:bold;'>(混乱-全假)</span> 【${t1.num+1}号是<b style='color:${c(fakes[0])}'>${fakes[0]}</b>, ${t2.num+1}号是<b style='color:${c(fakes[1])}'>${fakes[1]}</b>】<br><i style='color:#666; font-size:0.85em;'>(真实: ${t1.name}, ${t2.name})</i>`;
@@ -484,4 +514,4 @@ function calcGaoFeng() {
             : `【${t1.num+1}号是<b style='color:${c(fakes[0])}'>${fakes[0]}</b>, ${t2.num+1}号是<b style='color:${c(t2.name)}'>${t2.name}</b>】`;
         res.innerHTML = `<span style='color:#0277bd; font-weight:bold;'>(清醒-一真一假)</span> ${msg}<br><i style='color:#666; font-size:0.85em;'>(真实为 ${t1.name}, ${t2.name})</i>`;
     }
-}
+};
