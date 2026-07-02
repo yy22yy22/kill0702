@@ -278,14 +278,20 @@ function autoGenerateSetupData() {
     else if (balState === "HUMAN_STRONG") target = daBing || smallWolves[0] || playersList.find(p => isSeenAsBad(p.name));
     else target = smallWolves[0] || playersList.find(p => isSeenAsBad(p.name));
 
-    // 张寿臣假身份
+// 张寿臣假身份
     let zsc = playersList.find(p => p.name === "张寿臣");
     if (zsc) {
-        let bluffs = seenAsGoodRoles.filter(r => !inPlaySeenGood.includes(r)).sort(() => 0.5 - Math.random()).slice(0, 2);
+        // 从真实底牌为相声阵营中抽取：且不在场、且排除刘云天、且排除张伯鑫
+        let bluffPool = allRoles.filter(r => 
+            rolesPartyDict[r] === 0 && 
+            !inPlayRoles.includes(r) && 
+            r !== "刘云天" && 
+            r !== "张伯鑫"
+        );
+        let bluffs = bluffPool.sort(() => 0.5 - Math.random()).slice(0, 2);
         zsc.setupData.b1 = bluffs[0] || "";
         zsc.setupData.b2 = bluffs[1] || "";
     }
-
     // 戴志诚
     let dai = playersList.find(p => p.name === "戴志诚");
     if (dai) {
