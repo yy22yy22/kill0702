@@ -34,7 +34,6 @@ function isSeenAsGood(roleName) {
     return !isSeenAsBad(roleName);
 }
 
-// 生成下拉菜单组件
 function makeSelect(options, selectedVal, onChangeStr, width = "100px") {
     let html = `<select onchange="${onChangeStr}" style="width:${width}; margin:0 3px; padding:2px; border-radius:3px;">`;
     options.forEach(opt => {
@@ -59,6 +58,7 @@ function init(){
         let p = new Player(i);
         p.isConfused = false; 
         p.setupData = null; 
+        p.isDead = false; // 初始化存活状态
         playersList.push(p);
     }
     
@@ -82,6 +82,10 @@ function drawTabletop(){
         content += "<div style='left: calc(" + (Math.sin(arc*i) * playerNum / 9) + " * 25% + 50% - 1.75rem); top: calc(" + (Math.cos(arc*i) * playerNum / 9) + " * 25% + 50% - 1.75rem); background: " + alivenessColour[p.aliveness] + "; color: " + backgroundColour[p.party] + ";' class='playerAvatar'>" + p.name + "</div>";
     }
     chart.innerHTML = content;
+
+    // 绘制完桌面后，立即绑定死亡点击事件并刷新UI
+    attachTabletopDeathEvents();
+    updateTabletopDeathVisuals();
 }
 
 function distributeRoles(){
@@ -179,13 +183,12 @@ window.updateLiuFakeRole = function(val) {
     let liu = playersList.find(p => p.name === "刘云天");
     if (!liu) return;
     liu.setupData.fakeRole = val;
-    // 如果刘云天选了信息位，动态生成其专属假信息
     if (["戴志诚", "苏文茂", "师胜杰", "高峰"].includes(val)) {
         liu.setupData.info = buildFakeInfoForRole(val);
     } else {
         liu.setupData.info = null;
     }
-    renderDMSetupInfo(); // 重新渲染面板
+    renderDMSetupInfo(); 
 };
 
 window.updateLiuFakeInfo = function(key, val) {
@@ -205,10 +208,13 @@ function beginNightZero(){
     funnyState = [funnyNum+1, funnyNum+1, 0, 0]; 
     setGameState();
 
-    // 1. 自动生成全局和个人数据
     autoGenerateSetupData();
-    // 2. 渲染UI
     renderDMSetupInfo();
+
+    // 渲染开局面板后，自动插入云社控制面板
+    if(!document.getElementById('deadAndYunPanel')) {
+        initDeadAndYunUI();
+    }
 }
 
 function setGameState(){
@@ -222,7 +228,6 @@ function setGameState(){
     document.getElementById("funnyOut").innerHTML = funnyState[3];
 }
 
-// 通用的假信息生成函数
 function buildFakeInfoForRole(roleName) {
     let info = {};
     if (roleName === "戴志诚") {
@@ -233,7 +238,7 @@ function buildFakeInfoForRole(roleName) {
     } else if (roleName === "师胜杰") {
         info = { count: Math.floor(Math.random() * 4) };
     } else if (roleName === "高峰") {
-        info = { p1: 0, p2: 1 }; // 为高峰初始化目标选择占位
+        info = { p1: 0, p2: 1 }; 
     }
     return info;
 }
@@ -241,7 +246,6 @@ function buildFakeInfoForRole(roleName) {
 function autoGenerateSetupData() {
     playersList.forEach(p => { p.setupData = {}; p.isConfused = false; });
     
-    // 结算“椅子带王”的混乱状态
     let chair = playersList.find(p => p.name === "椅子带王");
     if (chair) {
         let idx = chair.num;
@@ -256,7 +260,6 @@ function autoGenerateSetupData() {
     const seenAsGoodRoles = allRoles.filter(isSeenAsGood);
     const inPlaySeenGood = playersList.filter(p => isSeenAsGood(p.name)).map(p => p.name);
 
-    // 刘云天明面身份 (修正：排除张伯鑫)
     let liu = playersList.find(p => p.name === "刘云天");
     if (liu) {
         let goodOut = outPlayRoles.filter(r => rolesPartyDict[r] === 0 && r !== "张伯鑫");
@@ -266,14 +269,12 @@ function autoGenerateSetupData() {
         if (["戴志诚", "苏文茂", "师胜杰", "高峰"].includes(role)) liu.setupData.info = buildFakeInfoForRole(role);
     }
 
-    // 张伯鑫明面身份
     let zhang = playersList.find(p => p.name === "张伯鑫");
     if (zhang) {
         let allBad = allRoles.filter(r => rolesPartyDict[r] === 1);
         zhang.setupData.fakeRole = allBad.length > 0 ? allBad[Math.floor(Math.random() * allBad.length)] : "无";
     }
 
-    // 战力判定 
     const strongGoodRoles = ["戴志诚", "师胜杰", "苏文茂", "高峰", "侯宝林", "侯耀文", "马季"];
     const strongBadRoles = ["曹云金", "赵本山", "椅子带王"];
     let H = playersList.filter(p => isSeenAsGood(p.name) && strongGoodRoles.includes(p.name) && !p.isConfused).length;
@@ -285,7 +286,6 @@ function autoGenerateSetupData() {
     let balState = (H <= W) ? "WOLF_STRONG" : (H >= W + 3) ? "HUMAN_STRONG" : "BALANCED";
     window.globalBalanceState = balState;
 
-    // 确定靶子
     const smallWolves = playersList.filter(p => p.party === 1 && p.name !== "张寿臣" && p.name !== "赵本山");
     const daBing = playersList.find(p => p.name === "大兵");
     let target = null;
@@ -293,7 +293,6 @@ function autoGenerateSetupData() {
     else if (balState === "HUMAN_STRONG") target = daBing || smallWolves[0] || playersList.find(p => isSeenAsBad(p.name));
     else target = smallWolves[0] || playersList.find(p => isSeenAsBad(p.name));
 
-    // 张寿臣假身份
     let zsc = playersList.find(p => p.name === "张寿臣");
     if (zsc) {
         let bluffPool = allRoles.filter(r => rolesPartyDict[r] === 0 && !inPlayRoles.includes(r) && r !== "刘云天" && r !== "张伯鑫");
@@ -302,7 +301,6 @@ function autoGenerateSetupData() {
         zsc.setupData.b2 = bluffs[1] || "";
     }
 
-    // 戴志诚
     let dai = playersList.find(p => p.name === "戴志诚");
     if (dai) {
         if (dai.isConfused) {
@@ -320,7 +318,6 @@ function autoGenerateSetupData() {
         }
     }
 
-    // 苏文茂
     let su = playersList.find(p => p.name === "苏文茂");
     if (su) {
         if (su.isConfused) {
@@ -338,7 +335,6 @@ function autoGenerateSetupData() {
         }
     }
 
-    // 师胜杰
     let shi = playersList.find(p => p.name === "师胜杰");
     if (shi) {
         let idx = shi.num, len = playerNum;
@@ -365,7 +361,6 @@ function renderDMSetupInfo() {
     let html = "<div style='border: 2px solid #333; padding: 15px; border-radius: 8px; background-color: #fafafa; margin-top: 15px;'>";
     html += "<h3 style='text-align:center; color:#333; margin-top:0;'>🎭 DM 可修改定制信息板</h3>";
 
-    // 连坐计算
     let adjCount = 0, lastBad = isSeenAsBad(playersList[playerNum - 1].name);
     for(let i=0; i<playerNum; i++) {
         let curBad = isSeenAsBad(playersList[i].name);
@@ -377,7 +372,6 @@ function renderDMSetupInfo() {
         <span style="color:#666; font-size:0.9em;">(当前系统判定局势: <b>${window.globalBalanceState}</b>)</span>
     </div><ul style='line-height:2.2; padding-left:20px; text-align:left;'>`;
 
-    // 渲染刘云天明面身份及交互框
     let liu = playersList.find(p => p.name === "刘云天");
     if (liu && liu.setupData) {
         let sel = makeSelect(rOpts, liu.setupData.fakeRole, `updateLiuFakeRole(this.value)`, "120px");
@@ -395,7 +389,6 @@ function renderDMSetupInfo() {
             } else if (liu.setupData.fakeRole === "师胜杰") {
                 html += "周围有 " + makeSelect(countOpts, d.count, `updateLiuFakeInfo('count', parseInt(this.value))`) + " 人";
             } else if (liu.setupData.fakeRole === "高峰") {
-                // 刘云天专属的假高峰生成器
                 let o = "<option value=''>选座号</option>";
                 pOpts.forEach(opt => { if(opt.val !== liu.num) o += `<option value='${opt.val}'>${opt.text}</option>`; });
                 html += `目标1 <select id='liu_gf_p1'>${o}</select> 目标2 <select id='liu_gf_p2'>${o}</select>
@@ -461,9 +454,6 @@ function renderDMSetupInfo() {
     document.getElementById("gameInfo").innerHTML = html;
 }
 
-// ==========================================
-// 交互模块：刘云天假高峰信息动态计算
-// ==========================================
 window.calcLiuGaoFeng = function() {
     let p1_idx = document.getElementById('liu_gf_p1').value;
     let p2_idx = document.getElementById('liu_gf_p2').value;
@@ -475,15 +465,10 @@ window.calcLiuGaoFeng = function() {
     let t1 = playersList[parseInt(p1_idx)], t2 = playersList[parseInt(p2_idx)];
     const c = (r) => isSeenAsBad(r) ? "red" : "blue";
 
-    // 刘云天是假高峰，必定获得两个随机的假信息误导他
     let fakes = allRoles.filter(r => r !== t1.name && r !== t2.name).sort(() => 0.5 - Math.random());
-    
     res.innerHTML = `<span style='color:purple; font-weight:bold;'>(伪造-全假)</span> 【${t1.num+1}号是<b style='color:${c(fakes[0])}'>${fakes[0]}</b>, ${t2.num+1}号是<b style='color:${c(fakes[1])}'>${fakes[1]}</b>】`;
 };
 
-// ==========================================
-// 交互模块：真高峰信息动态计算
-// ==========================================
 window.calcGaoFeng = function() {
     let gf = playersList.find(p => p.name === "高峰");
     if (!gf) return;
@@ -514,4 +499,166 @@ window.calcGaoFeng = function() {
             : `【${t1.num+1}号是<b style='color:${c(fakes[0])}'>${fakes[0]}</b>, ${t2.num+1}号是<b style='color:${c(t2.name)}'>${t2.name}</b>】`;
         res.innerHTML = `<span style='color:#0277bd; font-weight:bold;'>(清醒-一真一假)</span> ${msg}<br><i style='color:#666; font-size:0.85em;'>(真实为 ${t1.name}, ${t2.name})</i>`;
     }
+};
+
+// ==========================================
+// 全新嵌入机制：死亡管理与云社系统
+// ==========================================
+function attachTabletopDeathEvents() {
+    let numbers = document.getElementsByClassName('playerNumber');
+    let avatars = document.getElementsByClassName('playerAvatar');
+    for (let i = 0; i < playerNum; i++) {
+        if (numbers[i]) {
+            numbers[i].style.cursor = "pointer";
+            numbers[i].onclick = () => toggleDeath(i);
+        }
+        if (avatars[i]) {
+            avatars[i].style.cursor = "pointer";
+            avatars[i].onclick = () => toggleDeath(i);
+        }
+    }
+}
+
+window.toggleDeath = function(playerIdx) {
+    let p = playersList[playerIdx];
+    p.isDead = !p.isDead; 
+    let btn = document.getElementById('btn_death_' + playerIdx);
+    if(btn) {
+        btn.style.backgroundColor = p.isDead ? '#e0e0e0' : '#c8e6c9';
+        btn.style.color = p.isDead ? '#888' : '#000';
+        btn.style.textDecoration = p.isDead ? "line-through" : "none";
+    }
+    updateTabletopDeathVisuals();
+};
+
+function updateTabletopDeathVisuals() {
+    let numbers = document.getElementsByClassName('playerNumber');
+    let avatars = document.getElementsByClassName('playerAvatar');
+    for (let i = 0; i < playerNum; i++) {
+        if (playersList[i].isDead) {
+            if(numbers[i]) numbers[i].style.filter = "grayscale(100%) opacity(0.5)";
+            if(avatars[i]) {
+                avatars[i].style.filter = "grayscale(100%) opacity(0.5)";
+                avatars[i].style.textDecoration = "line-through";
+            }
+        } else {
+            if(numbers[i]) numbers[i].style.filter = "none";
+            if(avatars[i]) {
+                avatars[i].style.filter = "none";
+                avatars[i].style.textDecoration = "none";
+            }
+        }
+    }
+}
+
+function initDeadAndYunUI() {
+    let container = document.createElement('div');
+    container.id = 'deadAndYunPanel';
+    container.innerHTML = `
+        <div style="border: 2px solid #5e35b1; padding: 15px; border-radius: 8px; background-color: #f3e5f5; margin-top: 15px;">
+            <h3 style="margin-top:0; color:#4527a0; text-align:center;">☁️ 云社机制 & 死亡管理控制台</h3>
+            
+            <div style="margin-bottom: 10px;">
+                <strong>💀 死亡状态快捷管理：</strong> <span style="font-size:0.85em; color:#666;">(点击下方按钮，或直接点击上方座位图均可让玩家灰化)</span><br>
+                <div id="deathBtnContainer" style="margin-top: 5px; display:flex; flex-wrap:wrap; gap:5px;"></div>
+            </div>
+
+            <hr style="border:0; border-top:1px dashed #ab47bc; margin:15px 0;">
+
+            <div style="margin-bottom: 10px;">
+                <strong>☁️ 第一天【云社】结算：</strong><br>
+                <span style="font-size:0.9em; color:#555;">请选择第一天白天出局的玩家 (系统将根据此人的战力自动计算云社概率)：</span><br>
+                <select id="yunSheDeadSelect" style="padding:4px; margin-top:5px; border-radius:4px; margin-right:10px;">
+                    <option value="none">无人出局 (平安日)</option>
+                </select>
+                <button onclick="generateYunShe()" style="padding:4px 12px; background-color:#7b1fa2; color:white; border:none; border-radius:4px; cursor:pointer;">🔮 选拔云社成员</button>
+            </div>
+            
+            <div id="yunSheResult" style="min-height:50px; background-color:#fff; padding:10px; border-radius:5px; border:1px solid #ce93d8;">
+                <i>云社结算结果将在此显示...</i>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('gameWindow').appendChild(container);
+
+    let btnContainer = document.getElementById('deathBtnContainer');
+    let deadSelect = document.getElementById('yunSheDeadSelect');
+    
+    for (let i = 0; i < playerNum; i++) {
+        let p = playersList[i];
+        let btn = document.createElement('button');
+        btn.id = 'btn_death_' + i;
+        btn.innerText = (i + 1) + "号";
+        btn.style.cssText = "padding:3px 8px; border-radius:4px; border:1px solid #ccc; background-color:#c8e6c9; cursor:pointer; min-width:40px;";
+        btn.onclick = () => toggleDeath(i);
+        btnContainer.appendChild(btn);
+
+        let opt = document.createElement('option');
+        opt.value = i;
+        opt.innerText = `${i + 1}号 (${p.name})`;
+        deadSelect.appendChild(opt);
+    }
+}
+
+window.generateYunShe = function() {
+    let deadId = document.getElementById("yunSheDeadSelect").value;
+    
+    let aliveGood = playersList.filter(p => !p.isDead && p.party === 0);
+    let aliveSmallWolves = playersList.filter(p => !p.isDead && p.party === 1 && p.name !== "张寿臣" && p.name !== "赵本山");
+
+    let picked = [];
+    let ruleText = "";
+
+    const shuffle = arr => arr.sort(() => 0.5 - Math.random());
+
+    if (deadId === "none") {
+        ruleText = "首日【无人出局】：完全随机从存活小狼与好人中抽取2人。";
+        let pool = shuffle([...aliveGood, ...aliveSmallWolves]);
+        picked = pool.slice(0, 2);
+    } else {
+        let deadPlayer = playersList[parseInt(deadId)];
+        let is1W1G = false; 
+
+        if (deadPlayer.party === 1) {
+            ruleText = `首日出局为狼人 [${deadPlayer.name}]：极大概率 (90%) 选两个好人，(10%) 选一狼一好人。`;
+            is1W1G = Math.random() > 0.9; 
+        } else if (["侯耀文", "侯宝林", "马季"].includes(deadPlayer.name)) {
+            ruleText = `首日出局为强神 [${deadPlayer.name}]：较大概率 (80%) 选一狼一好人，(20%) 选两个好人。`;
+            is1W1G = Math.random() < 0.8;
+        } else {
+            ruleText = `首日出局为其他好人 [${deadPlayer.name}]：中等概率 (50%) 选一狼一好人，(50%) 选两个好人。`;
+            is1W1G = Math.random() < 0.5;
+        }
+
+        if (is1W1G && aliveSmallWolves.length >= 1 && aliveGood.length >= 1) {
+            picked.push(shuffle(aliveSmallWolves)[0]);
+            picked.push(shuffle(aliveGood)[0]);
+        } else if (aliveGood.length >= 2) {
+            if (is1W1G) ruleText += " <span style='color:red;'>(注: 由于存活小狼不足，降级强制选两好人)</span>";
+            picked = shuffle(aliveGood).slice(0, 2);
+        } else {
+            picked = shuffle([...aliveGood, ...aliveSmallWolves]).slice(0, 2);
+        }
+    }
+
+    if (picked.length < 2) {
+         document.getElementById('yunSheResult').innerHTML = "<b style='color:red;'>❌ 存活人数不足，无法开启云社！</b>";
+         return;
+    }
+
+    picked = shuffle(picked); 
+    let p1 = picked[0]; 
+    let p2 = picked[1]; 
+
+    const c = (p) => p.party === 1 ? 'red' : 'blue';
+    const pLabel = (p) => `【${p.num + 1}号 <b style='color:${c(p)}'>${p.name}</b>】`;
+
+    let html = `<div style="margin-bottom:8px; font-size:0.9em; color:#555;"><b>🤖 判定依据：</b>${ruleText}</div>`;
+    html += `<div style="font-size:1.1em; margin-bottom:12px; color:#333;">☁️ 进入云社的玩家是：${pLabel(p1)} 和 ${pLabel(p2)}</div>`;
+    html += `<div style="font-size:1.15em; color:#d84315; font-weight:bold; background:#ffccbc; padding:8px; border-radius:4px; display:inline-block; border:1px solid #ff8a65;">
+        🗡️ 获得【一次刀人机会】的是：${pLabel(p1)}
+    </div>`;
+    
+    document.getElementById('yunSheResult').innerHTML = html;
 };
