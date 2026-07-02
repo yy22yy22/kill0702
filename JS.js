@@ -45,7 +45,7 @@ function init(){
     for (let i = 0; i < playerNum; i++){
         let p = new Player(i);
         p.isConfused = false; // 初始化清醒状态
-        p.fakeRole = null;    // 初始化明面假身份（用于刘云天、张伯鑫）
+        p.fakeRole = null;    // 初始化明面假身份
         playersList.push(p);
     }
     
@@ -129,7 +129,8 @@ function distributeRolesWithDetails(roleNum, roles, tempPlayerList){
         } while (tempList.indexOf(index) != -1);
         tempList.push(index);
 
-        let role = new Role(roles[index]);
+        let roleName = roles[index];
+        let role = new Role(roleName);
         
         do{ 
             index = Math.floor((Math.random()*playerNum));
@@ -137,7 +138,8 @@ function distributeRolesWithDetails(roleNum, roles, tempPlayerList){
         tempPlayerList.push(index);
 
         playersList[index].setRole(role);
-        roleAndPlayerDic[role] = playersList[index];
+        // 【关键修复】这里把原有的 role 修正为 roleName，防止下拉列表崩溃
+        roleAndPlayerDic[roleName] = playersList[index];
     }
     return tempPlayerList;
 }
@@ -160,7 +162,7 @@ function drawStatusDiagram(){
     for (let i = 0; i < allRoles.length; i ++){
         if(roleAndPlayerDic[allRoles[i]] == undefined){
             changeList += "<option value='" + allRoles[i] + "'>";
-            allRoles[i] + "</option>";
+            changeList += allRoles[i] + "</option>";
         }
     }
 
@@ -198,7 +200,7 @@ function changeRole(num, name){
     player.setRole(role);
     roleAndPlayerDic[name] = player;
     document.getElementById("comedyNumRegion").innerHTML = comedyNum;
-.getElementById("funnyNumRegion").innerHTML  = funnyNum+1;
+    document.getElementById("funnyNumRegion").innerHTML  = funnyNum+1;
     drawStatusDiagram();
 }
 
@@ -209,9 +211,10 @@ function beginNightZero(){
     funnyState = [funnyNum+1, funnyNum+1, 0, 0]; 
     setGameState();
 
-    // 在生成面板前，先结算分配刘云天与张伯鑫的明面假身份
+    // 在生成信息面板前，提前结算刘云天与张伯鑫的明面假身份
     assignSpecialFakeRoles();
 
+    // 渲染提示板
     document.getElementById("gameInfo").innerHTML = generateDMSetupInfo();
 }
 
@@ -227,7 +230,7 @@ function setGameState(){
 }
 
 // ==========================================
-// 新增：为刘云天、张伯鑫分配初始明面身份 (已修复张伯鑫全狼池)
+// 身份发放：刘云天、张伯鑫专属假身份生成逻辑
 // ==========================================
 function assignSpecialFakeRoles() {
     const inPlayRoles = playersList.map(p => p.name);
@@ -236,11 +239,10 @@ function assignSpecialFakeRoles() {
     
     let liu = playersList.find(p => p.name === "刘云天");
     if (liu && !liu.fakeRole) {
-        // 刘云天：一定被发的是不在场角色（从不在场好人中抽取）
+        // 刘云天：不在场好人
         if (outPlayGoodRoles.length > 0) {
             let rIndex = Math.floor(Math.random() * outPlayGoodRoles.length);
             liu.fakeRole = outPlayGoodRoles[rIndex];
-            // 从池子中移除该身份，防止其他人撞车
             outPlayGoodRoles.splice(rIndex, 1); 
         } else {
             liu.fakeRole = outPlayRoles[Math.floor(Math.random() * outPlayRoles.length)] || "无";
@@ -249,7 +251,7 @@ function assignSpecialFakeRoles() {
 
     let zhang = playersList.find(p => p.name === "张伯鑫");
     if (zhang && !zhang.fakeRole) {
-        // 张伯鑫：被发的是【任意狼角色】（绝对不可能是好人，包含在场与不在场）
+        // 张伯鑫：任意狼角色（锁定全狼池）
         const allBadRolesList = allRoles.filter(r => rolesPartyDict[r] === 1);
         if (allBadRolesList.length > 0) {
             zhang.fakeRole = allBadRolesList[Math.floor(Math.random() * allBadRolesList.length)];
@@ -260,7 +262,7 @@ function assignSpecialFakeRoles() {
 }
 
 // ==========================================
-// 核心模块：DM 提示面板生成
+// 核心模块：DM 提示面板生成与战力系统联动
 // ==========================================
 function generateDMSetupInfo() {
     let setupHtml = "<div style='border: 2px solid #333; padding: 15px; border-radius: 8px; background-color: #fafafa; margin-top: 15px;'>";
@@ -279,7 +281,7 @@ function generateDMSetupInfo() {
         <strong>📢 全局公告 (白天公布)：</strong> 场上存在 <b style="color:red; font-size:1.2em;">${adjacentBadCount}</b> 对相邻搞笑阵营。<br>
     </div>`;
 
-    // 1. 战力评估系统与刘云天/张伯鑫战力惩罚结算
+    // 1. 战力评估系统
     const strongGoodRoles = ["戴志诚", "师胜杰", "苏文茂", "高峰", "侯宝林", "侯耀文", "马季"];
     const strongBadRoles = ["曹云金", "赵本山", "椅子带王"];
     const infoRoles = ["戴志诚", "苏文茂", "师胜杰", "高峰"];
@@ -287,15 +289,14 @@ function generateDMSetupInfo() {
     let H = playersList.filter(p => isSeenAsGood(p.name) && strongGoodRoles.includes(p.name) && !p.isConfused).length;
     let W = playersList.filter(p => p.party === 1 && strongBadRoles.includes(p.name)).length;
 
-    // 引入负面影响判定：每出现一种负面状态，好人强力战力 H 减 0.5
     let liu = playersList.find(p => p.name === "刘云天");
     if (liu && infoRoles.includes(liu.fakeRole)) {
-        H -= 0.5; // 刘云天被发到信息位假身份
+        H -= 0.5; // 刘云天被发到信息位
     }
 
     let zhang = playersList.find(p => p.name === "张伯鑫");
     if (zhang && rolesPartyDict[zhang.fakeRole] === 1 && zhang.fakeRole !== "曹云金" && zhang.fakeRole !== "卓别林") {
-        H -= 0.5; // 张伯鑫被发到除曹云金、卓别林外不易察觉的狼队角色
+        H -= 0.5; // 张伯鑫被发到不易察觉的狼队角色
     }
 
     let gameBalanceState, balanceMessage;
@@ -332,17 +333,13 @@ function generateDMSetupInfo() {
     const seenAsGoodRoles = allRoles.filter(isSeenAsGood);
 
     // 3. 角色信息结算
-    
-    // (1) 播报刘云天、张伯鑫的明面身份
     if (liu) {
-        setupHtml += `<li><b>【刘云天】开局明面身份：</b>告知他他以为自己是 <span style="color: blue;">${liu.fakeRole}</span>。<i>（DM暗记：必定为不在场身份）</i></li>`;
+        setupHtml += `<li><b>【刘云天】明面身份：</b>告知他他以为自己是 <span style="color: blue;">${liu.fakeRole}</span>。<i>（暗记：必定为不在场身份）</i></li>`;
     }
     if (zhang) {
-        let color = rolesPartyDict[zhang.fakeRole] === 1 ? "red" : "blue";
-        setupHtml += `<li><b>【张伯鑫】开局明面身份：</b>告知他他以为自己是 <span style="color: ${color};">${zhang.fakeRole}</span>。<i>（DM暗记：可能包含在场狼人）</i></li>`;
+        setupHtml += `<li><b>【张伯鑫】明面身份：</b>告知他他以为自己是 <span style="color: red;">${zhang.fakeRole}</span>。<i>（暗记：必定为狼人身份，可能在场）</i></li>`;
     }
     
-    // (2) 张寿臣的假身份
     const zhangShouChen = playersList.find(p => p.name === "张寿臣");
     if (zhangShouChen) {
         const inPlaySeenGood = playersList.filter(p => isSeenAsGood(p.name)).map(p => p.name);
@@ -351,7 +348,6 @@ function generateDMSetupInfo() {
         setupHtml += `<li><b>【张寿臣】假身份：</b>请告知三个不在场好人：<span style="color: blue; font-weight:bold;">${bluffs.join("、") || "无可用"}</span></li>`;
     }
 
-    // (3) 戴志诚
     const daiZhiCheng = playersList.find(p => p.name === "戴志诚");
     if (daiZhiCheng) {
         if (daiZhiCheng.isConfused) {
@@ -379,7 +375,6 @@ function generateDMSetupInfo() {
         }
     }
 
-    // (4) 苏文茂
     const suWenMao = playersList.find(p => p.name === "苏文茂");
     if (suWenMao) {
         if (suWenMao.isConfused) {
@@ -416,7 +411,6 @@ function generateDMSetupInfo() {
         }
     }
 
-    // (5) 师胜杰
     const shiShengJie = playersList.find(p => p.name === "师胜杰");
     if (shiShengJie) {
         const idx = playersList.indexOf(shiShengJie);
@@ -438,7 +432,6 @@ function generateDMSetupInfo() {
         }
     }
 
-    // (6) 高峰 交互式信息生成
     const gaoFeng = playersList.find(p => p.name === "高峰");
     if (gaoFeng) {
         let options = "<option value=''>请选择座号</option>";
@@ -461,7 +454,7 @@ function generateDMSetupInfo() {
 }
 
 // ==========================================
-// 交互模块：高峰信息动态生成 (已修复DM视觉误导)
+// 交互模块：高峰信息动态生成
 // ==========================================
 function calcGaoFeng(balanceState) {
     const gf = playersList.find(p => p.name === "高峰");
@@ -483,7 +476,6 @@ function calcGaoFeng(balanceState) {
     const t1 = playersList[parseInt(p1_idx)];
     const t2 = playersList[parseInt(p2_idx)];
 
-    // 【关键修复】动态获取颜色，防止DM看错阵营 (蓝=好人，红=坏人)
     const getColor = (roleName) => isSeenAsBad(roleName) ? "red" : "blue";
 
     if (gf.isConfused) {
