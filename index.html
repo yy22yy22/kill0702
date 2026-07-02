@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="cn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <title>相声杀小助手</title>
+    <style>
+        html body {
+            width: 100%;
+            height:  100%;
+            text-align: center;
+            overflow-x: hidden;
+            overflow-y: scroll;
+            display: inline;
+        }
+        .background {
+            margin: 0;
+            max-width: 400px;
+            height: 95%;
+            width: 95%;
+            display: inline-block;
+            text-align: center;
+            overflow: hidden;
+            position: relative;
+        }
+        .playerTableWindow{
+            width: 90%;
+            aspect-ratio: 3/4;
+            position: absolute;
+            text-align: center;
+            left: 5%;
+            top: 20%;
+            background: white;
+            border: black solid 1pt;
+        }
+        .playerChart{
+            width: 100%;
+            aspect-ratio: 1;
+            position: relative;
+        }
+        .playerAvatar{
+            height: 3.5rem;
+            width:  3.5rem;
+            text-align: center;
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2rem;
+            font-weight: bold;
+            text-shadow: #FFF 1px 0 0, #FFF 0 1px 0, #FFF -1px 0 0, #FFF 0 -1px 0;
+            color: white;
+        }
+        .playerNumber{
+            height: 2rem;
+            width:  2rem;
+            text-align: center;
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 1rem;
+            color: white;
+        }
+        .tableDiv{
+            padding: 2%;
+            overflow-y: scroll;
+            border: black solid 1pt;
+            position: relative;
+        }
+
+        .gameWindow{
+            padding: 2%;
+            overflow-y: scroll;
+            position: relative;
+        }
+    </style>
+    <script src="./Player.js"></script>
+    <script src="./Consts.js"></script>
+    <script src="./JS.js"></script>
+
+</head>
+<body>
+    <div class="background">
+        <h2>相声杀小助手</h2>
+        <div id="buttonsDiv">
+            <button onclick="init()">新一局</button>
+            <button id="displayTable" onclick="displayTable()">展示当前桌面</button>
+        </div>
+
+        <div id="initialWindow">
+            <div id="playerNumberDiv">
+                <p><table style="width: 90%; table-layout: fixed;"><tr>
+                    <td>人数
+                        <select id="PlayerNumber" onchange="init()">
+                            <option value=9 selected="true">9</option>
+                            <option value=10>10</option>
+                            <option value=11>11</option>
+                            <option value=12>12</option>
+                            <option value=13>13</option>
+                        </select>
+                    </td>
+                    <td>相声阵营<span id="comedyNumRegion"></span>人</td>
+                    <td>搞笑阵营<span id="funnyNumRegion" ></span>人</td>
+                </tr></table></p>
+            </div>
+            <div class="tableDiv">
+                <div id="tableDiv">
+                </div>
+                <div style="width: 100%">
+                    <button onclick="beginNightZero()">我已确定 开始第0夜</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="gameWindow" class="gameWindow" hidden>
+            <div>第<span id="dayNum">0</span>天 <span id="dayState">夜晚</span></div>
+            <div id="gameState">
+                <p><table style="width: 90%; table-layout: auto;">
+                    <tr>
+                        <th>阵营</th><th>总人数</th><th>在场</th><th>下场</th><th>出局</th>
+                    </tr>
+                    <tr>
+                        <td>相声阵营</td>
+                        <td id="comedyTotal"></td>
+                        <td id="comedyOn"></td>
+                        <td id="comedyOff"></td>
+                        <td id="comedyOut"></td>
+                    </tr>
+                    <tr>
+                        <td>搞笑阵营</td>
+                        <td id="funnyTotal"></td>
+                        <td id="funnyOn"></td>
+                        <td id="funnyOff"></td>
+                        <td id="funnyOut"></td>
+                    </tr>
+                </table></p>
+            </div>
+            <div id="gameInfoRegion">
+                <div id="gameInfo"></div>
+            </div>
+        </div>
+
+
+
+    </div>
+
+
+
+    <div id="playerTableWindow" class="playerTableWindow" hidden>
+        <button style="position: absolute;
+                    right: 1px;
+                    top: 1px;
+                    height: 2rem;
+                    width: 2rem;
+                    text-align: center"
+                onclick="displayTable()">X</button>
+        <p>搞笑阵营红色数字 相声阵营蓝色数字</p>
+        <p>绿色在场 暗绿下场 灰色出局</p>
+        <div id="playerChart" class="playerChart"></div>
+    </div>
+<script type="text/javascript">
+    init();
+</script>
+</body>
+</html>
