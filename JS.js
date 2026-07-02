@@ -235,3 +235,95 @@ function giveNoticeBoard(){
     }
     return result;
 }
+// 假设已有的玩家数组是 players，每个元素包含 role (角色名), isBad (是否搞笑阵营) 等属性
+// 假设 allGoodRoles 是所有相声阵营角色的名称数组
+// 假设 allBadRoles 是所有搞笑阵营角色的名称数组
+
+function generateDMSetupInfo(players, allGoodRoles, allBadRoles) {
+    let setupHtml = "<h3>🎭 DM 开局专属提示信息（真实信息，无视混乱）</h3><ul style='line-height: 1.8;'>";
+
+    // 1. 获取张寿臣/郭德纲的伪装身份 (3个不在场的相声阵营角色)
+    const evilBoss = players.find(p => p.role === "张寿臣" || p.role === "郭德纲");
+    if (evilBoss) {
+        // 找出当前在场的相声角色
+        const inPlayGoodRoles = players.filter(p => !p.isBad).map(p => p.role);
+        // 筛选出不在场的相声角色
+        const outOfPlayGoodRoles = allGoodRoles.filter(role => !inPlayGoodRoles.includes(role));
+        
+        // 随机抽取3个作为假身份 (打乱数组后取前3)
+        const bluffs = outOfPlayGoodRoles.sort(() => 0.5 - Math.random()).slice(0, 3);
+        setupHtml += `<li><b>【${evilBoss.role}】的假身份：</b>请告知他这三个不在场的好人身份：<span style="color: blue;">${bluffs.join("、")}</span></li>`;
+    }
+
+    // 2. 戴志诚信息：得知随机一名搞笑阵营角色在哪两名玩家之中
+    const daiZhiCheng = players.find(p => p.role === "戴志诚");
+    if (daiZhiCheng) {
+        const badPlayers = players.filter(p => p.isBad);
+        const randomBad = badPlayers[Math.floor(Math.random() * badPlayers.length)];
+        
+        const otherPlayers = players.filter(p => p !== randomBad && p.role !== "戴志诚");
+        const randomOther = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+        
+        // 将两人位置打乱，防止固定顺序暴露谁是坏人
+        const targetPair = [randomBad, randomOther].sort(() => 0.5 - Math.random());
+        
+        setupHtml += `<li><b>【戴志诚】信息位：</b>请告知他，搞笑阵营的 <span style="color: red;">${randomBad.role}</span> 在 【${targetPair[0].id}号】与【${targetPair[1].id}号】玩家之中。</li>`;
+    }
+
+    // 3. 师胜杰信息：左右各两名玩家里共有几位搞笑阵营玩家
+    const shiShengJie = players.find(p => p.role === "师胜杰");
+    if (shiShengJie) {
+        const idx = players.indexOf(shiShengJie);
+        const len = players.length;
+        // 环形数组获取左右各两人
+        const neighbors = [
+            players[(idx - 1 + len) % len],
+            players[(idx - 2 + len) % len],
+            players[(idx + 1) % len],
+            players[(idx + 2) % len]
+        ];
+        
+        // 计算“视为”搞笑阵营的数量（需考虑大兵和赵本山的被动伪装）
+        let badCount = 0;
+        neighbors.forEach(p => {
+            if (p.role === "大兵") {
+                badCount++; // 大兵视为搞笑阵营
+            } else if (p.role === "赵本山") {
+                // 赵本山视为相声阵营，不加
+            } else if (p.isBad) {
+                badCount++;
+            }
+        });
+        
+        setupHtml += `<li><b>【师胜杰】信息位：</b>请告知他，他左右两边共4名玩家中，共有 <span style="color: red;">${badCount}</span> 位搞笑阵营玩家。</li>`;
+    }
+
+    // 4. 苏文茂信息：两名搞笑阵营和两名相声阵营，其中两人在场
+    const suWenMao = players.find(p => p.role === "苏文茂");
+    if (suWenMao) {
+        // 在场的 1搞笑 1相声
+        const inPlayBad = players.filter(p => p.isBad).map(p => p.role);
+        const inPlayGood = players.filter(p => !p.isBad && p.role !== "苏文茂").map(p => p.role);
+        
+        // 不在场的 1搞笑 1相声
+        const outPlayBad = allBadRoles.filter(role => !inPlayBad.includes(role));
+        const outPlayGood = allGoodRoles.filter(role => !inPlayGood.includes(role) && role !== "苏文茂");
+        
+        const p1 = inPlayBad[Math.floor(Math.random() * inPlayBad.length)];
+        const p2 = inPlayGood[Math.floor(Math.random() * inPlayGood.length)];
+        const p3 = outPlayBad[Math.floor(Math.random() * outPlayBad.length)];
+        const p4 = outPlayGood[Math.floor(Math.random() * outPlayGood.length)];
+        
+        const suInfoRoles = [p1, p2, p3, p4].sort(() => 0.5 - Math.random());
+        setupHtml += `<li><b>【苏文茂】信息位：</b>请告知他这四个角色：【${suInfoRoles.join("、")}】。<br><i>（DM暗记：其中 ${p1} 和 ${p2} 是在场玩家）</i></li>`;
+    }
+
+    // 5. 高峰信息：需要DM动态交互
+    const gaoFeng = players.find(p => p.role === "高峰");
+    if (gaoFeng) {
+        setupHtml += `<li><b>【高峰】信息位：</b>开局需等待高峰主动选择两名玩家，你需要告知他这两人的角色<br><i>（DM提示：至少告知一个正确的真实角色，你可以根据局势决定是否给一个假角色）。</i></li>`;
+    }
+
+    setupHtml += "</ul>";
+    return setupHtml;
+}
