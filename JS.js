@@ -227,18 +227,21 @@ function setGameState(){
 }
 
 // ==========================================
-// 新增：为刘云天、张伯鑫分配初始明面身份
+// 新增：为刘云天、张伯鑫分配初始明面身份 (已修复张伯鑫全狼池)
 // ==========================================
 function assignSpecialFakeRoles() {
     const inPlayRoles = playersList.map(p => p.name);
     const outPlayRoles = allRoles.filter(r => !inPlayRoles.includes(r));
-    const outPlayGoodRoles = outPlayRoles.filter(r => rolesPartyDict[r] === 0);
+    let outPlayGoodRoles = outPlayRoles.filter(r => rolesPartyDict[r] === 0);
     
     let liu = playersList.find(p => p.name === "刘云天");
     if (liu && !liu.fakeRole) {
-        // 刘云天：一定被发的是不在场角色 (最好是好人神职以增加干扰)
+        // 刘云天：一定被发的是不在场角色（从不在场好人中抽取）
         if (outPlayGoodRoles.length > 0) {
-            liu.fakeRole = outPlayGoodRoles[Math.floor(Math.random() * outPlayGoodRoles.length)];
+            let rIndex = Math.floor(Math.random() * outPlayGoodRoles.length);
+            liu.fakeRole = outPlayGoodRoles[rIndex];
+            // 从池子中移除该身份，防止其他人撞车
+            outPlayGoodRoles.splice(rIndex, 1); 
         } else {
             liu.fakeRole = outPlayRoles[Math.floor(Math.random() * outPlayRoles.length)] || "无";
         }
@@ -246,11 +249,10 @@ function assignSpecialFakeRoles() {
 
     let zhang = playersList.find(p => p.name === "张伯鑫");
     if (zhang && !zhang.fakeRole) {
-        // 张伯鑫：可以被发在场的狼角色 (混合池：不在场好人 + 在场狼队)
-        const inPlayBadRoles = playersList.filter(p => p.party === 1).map(p => p.name);
-        let candidates = [...outPlayGoodRoles, ...inPlayBadRoles];
-        if (candidates.length > 0) {
-            zhang.fakeRole = candidates[Math.floor(Math.random() * candidates.length)];
+        // 张伯鑫：被发的是【任意狼角色】（绝对不可能是好人，包含在场与不在场）
+        const allBadRolesList = allRoles.filter(r => rolesPartyDict[r] === 1);
+        if (allBadRolesList.length > 0) {
+            zhang.fakeRole = allBadRolesList[Math.floor(Math.random() * allBadRolesList.length)];
         } else {
             zhang.fakeRole = "无";
         }
@@ -459,7 +461,7 @@ function generateDMSetupInfo() {
 }
 
 // ==========================================
-// 交互模块：高峰信息动态生成
+// 交互模块：高峰信息动态生成 (已修复DM视觉误导)
 // ==========================================
 function calcGaoFeng(balanceState) {
     const gf = playersList.find(p => p.name === "高峰");
@@ -481,10 +483,13 @@ function calcGaoFeng(balanceState) {
     const t1 = playersList[parseInt(p1_idx)];
     const t2 = playersList[parseInt(p2_idx)];
 
+    // 【关键修复】动态获取颜色，防止DM看错阵营 (蓝=好人，红=坏人)
+    const getColor = (roleName) => isSeenAsBad(roleName) ? "red" : "blue";
+
     if (gf.isConfused) {
         let fakes = allRoles.filter(r => r !== t1.name && r !== t2.name).sort(() => 0.5 - Math.random());
         resultDiv.innerHTML = `<span style='color: purple; font-weight:bold;'>(已混乱 - 全假)</span> 请照读：<br>
-            【${t1.num + 1}号是 <b style='color:red;'>${fakes[0]}</b>，${t2.num + 1}号是 <b style='color:red;'>${fakes[1]}</b>】<br>
+            【${t1.num + 1}号是 <b style='color:${getColor(fakes[0])};'>${fakes[0]}</b>，${t2.num + 1}号是 <b style='color:${getColor(fakes[1])};'>${fakes[1]}</b>】<br>
             <span style='color:#666; font-size:0.85em;'>(DM暗记：真实为 ${t1.name} 和 ${t2.name})</span>`;
     } else {
         let fakes = allRoles.filter(r => r !== t1.name && r !== t2.name).sort(() => 0.5 - Math.random());
@@ -500,13 +505,13 @@ function calcGaoFeng(balanceState) {
 
         if (isBothTrue) {
             resultDiv.innerHTML = `<span style='color: green; font-weight:bold;'>(清醒 - 全真)</span> 请照读：<br>
-                【${t1.num + 1}号是 <b style='color:blue;'>${t1.name}</b>，${t2.num + 1}号是 <b style='color:blue;'>${t2.name}</b>】`;
+                【${t1.num + 1}号是 <b style='color:${getColor(t1.name)};'>${t1.name}</b>，${t2.num + 1}号是 <b style='color:${getColor(t2.name)};'>${t2.name}</b>】`;
         } else {
             let msg = "";
             if (Math.random() < 0.5) { 
-                msg = `【${t1.num + 1}号是 <b style='color:blue;'>${t1.name}</b>，${t2.num + 1}号是 <b style='color:red;'>${fakes[0]}</b>】`;
+                msg = `【${t1.num + 1}号是 <b style='color:${getColor(t1.name)};'>${t1.name}</b>，${t2.num + 1}号是 <b style='color:${getColor(fakes[0])};'>${fakes[0]}</b>】`;
             } else {
-                msg = `【${t1.num + 1}号是 <b style='color:red;'>${fakes[0]}</b>，${t2.num + 1}号是 <b style='color:blue;'>${t2.name}</b>】`;
+                msg = `【${t1.num + 1}号是 <b style='color:${getColor(fakes[0])};'>${fakes[0]}</b>，${t2.num + 1}号是 <b style='color:${getColor(t2.name)};'>${t2.name}</b>】`;
             }
             resultDiv.innerHTML = `<span style='color: #0277bd; font-weight:bold;'>(清醒 - 一真一假)</span> 请照读：<br>
                 ${msg}<br>
