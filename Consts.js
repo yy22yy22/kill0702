@@ -25,7 +25,6 @@ const allRoles = [
     "张伯鑫"
     ];
 
-
 const rolesPartyDict = {
     "张寿臣" : 1,
     "椅子带王" : 1,
