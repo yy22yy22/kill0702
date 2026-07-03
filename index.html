@@ -20,7 +20,6 @@
             width: 95%;
             display: inline-block;
             text-align: center;
-            overflow: hidden;
             position: relative;
         }
         .playerTableWindow{
@@ -78,13 +77,12 @@
     <script src="./Player.js"></script>
     <script src="./Consts.js"></script>
     <script src="./JS.js"></script>
-    <script src="./deadandyun.js"></script>
 
 </head>
 <body>
     <div class="background">
         <h2>相声杀小助手</h2>
-        <div id="buttonsDiv">
+        <div id="buttonsDiv" style="position: sticky; top: 0; z-index: 1000; background-color: rgba(255,255,255,0.95); padding: 10px 0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 15px;">
             <button onclick="init()">新一局</button>
             <button id="displayTable" onclick="displayTable()">展示当前桌面</button>
         </div>
