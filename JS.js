@@ -353,6 +353,17 @@ function autoGenerateSetupData() {
 // 前端渲染：定制信息板
 // ==========================================
 function renderDMSetupInfo() {
+    const inPlayRoles = playersList.map(p => p.name);
+
+    // 核心修改：生成安全的假身份池 (真实底牌为好人 + 不在场 + 排除刘云天/张伯鑫)
+    let safeBluffPool = allRoles.filter(r => 
+        rolesPartyDict[r] === 0 && 
+        !inPlayRoles.includes(r) && 
+        r !== "刘云天" && 
+        r !== "张伯鑫"
+    );
+    let safeOpts = safeBluffPool.map(r => ({val: r, text: r}));
+
     let rOpts = allRoles.map(r => ({val: r, text: r}));
     let badOpts = allRoles.filter(isSeenAsBad).map(r => ({val: r, text: r}));
     let pOpts = playersList.map(p => ({val: p.num, text: `${p.num + 1}号 (${p.name})`}));
@@ -374,8 +385,9 @@ function renderDMSetupInfo() {
 
     let liu = playersList.find(p => p.name === "刘云天");
     if (liu && liu.setupData) {
-        let sel = makeSelect(rOpts, liu.setupData.fakeRole, `updateLiuFakeRole(this.value)`, "120px");
-        html += `<li><b>【刘云天】明面身份:</b> 他以为自己是 ${sel} <i>(仅建议选不在场，不会是张伯鑫)</i>`;
+        // 使用 safeOpts 渲染刘云天明面身份
+        let sel = makeSelect(safeOpts, liu.setupData.fakeRole, `updateLiuFakeRole(this.value)`, "120px");
+        html += `<li><b>【刘云天】明面身份:</b> 他以为自己是 ${sel} <i>(已过滤：仅显示安全好人)</i>`;
         
         if (liu.setupData.info) {
             let d = liu.setupData.info;
@@ -408,8 +420,9 @@ function renderDMSetupInfo() {
 
     let zsc = playersList.find(p => p.name === "张寿臣");
     if (zsc && zsc.setupData) {
-        let s1 = makeSelect(rOpts, zsc.setupData.b1, `updateSetup(${zsc.num}, 'b1', this.value)`);
-        let s2 = makeSelect(rOpts, zsc.setupData.b2, `updateSetup(${zsc.num}, 'b2', this.value)`);
+        // 使用 safeOpts 渲染张寿臣假身份
+        let s1 = makeSelect(safeOpts, zsc.setupData.b1, `updateSetup(${zsc.num}, 'b1', this.value)`);
+        let s2 = makeSelect(safeOpts, zsc.setupData.b2, `updateSetup(${zsc.num}, 'b2', this.value)`);
         html += `<li><b>【张寿臣】假身份:</b> 告知两个好人：${s1} 和 ${s2}</li>`;
     }
 
