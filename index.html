@@ -77,19 +77,19 @@
     <script src="./Player.js"></script>
     <script src="./Consts.js"></script>
     <script src="./JS.js"></script>
-
 </head>
 <body>
     <div class="background">
-        <h2>相声杀小助手</h2>
+        <h2 style="margin-top: 10px;">相声杀小助手</h2>
+        
         <div id="buttonsDiv" style="position: sticky; top: 0; z-index: 1000; background-color: rgba(255,255,255,0.95); padding: 10px 0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 15px;">
-            <button onclick="init()">新一局</button>
-            <button id="displayTable" onclick="displayTable()">展示当前桌面</button>
+            <button onclick="init()" style="padding: 5px 15px;">新一局</button>
+            <button id="displayTable" onclick="displayTable()" style="padding: 5px 15px;">展示当前桌面</button>
         </div>
 
         <div id="initialWindow">
             <div id="playerNumberDiv">
-                <p><table style="width: 90%; table-layout: fixed;"><tr>
+                <p><table style="width: 90%; table-layout: fixed; margin: 0 auto;"><tr>
                     <td>人数
                         <select id="PlayerNumber" onchange="init()">
                             <option value=9 selected="true">9</option>
@@ -106,7 +106,7 @@
             <div class="tableDiv">
                 <div id="tableDiv">
                 </div>
-                <div style="width: 100%">
+                <div style="width: 100%; margin-top: 10px;">
                     <button onclick="beginNightZero()">我已确定 开始第0夜</button>
                 </div>
             </div>
@@ -115,7 +115,7 @@
         <div id="gameWindow" class="gameWindow" hidden>
             <div>第<span id="dayNum">0</span>天 <span id="dayState">夜晚</span></div>
             <div id="gameState">
-                <p><table style="width: 90%; table-layout: auto;">
+                <p><table style="width: 90%; table-layout: auto; margin: 0 auto;">
                     <tr>
                         <th>阵营</th><th>总人数</th><th>在场</th><th>下场</th><th>出局</th>
                     </tr>
@@ -140,20 +140,10 @@
             </div>
         </div>
 
-
-
     </div>
 
-
-
     <div id="playerTableWindow" class="playerTableWindow" hidden>
-        <button style="position: absolute;
-                    right: 1px;
-                    top: 1px;
-                    height: 2rem;
-                    width: 2rem;
-                    text-align: center"
-                onclick="displayTable()">X</button>
+        <button style="position: absolute; right: 1px; top: 1px; height: 2rem; width: 2rem; text-align: center" onclick="displayTable()">X</button>
         <p>搞笑阵营红色数字 相声阵营蓝色数字</p>
         <p>绿色在场 暗绿下场 灰色出局</p>
         <div id="playerChart" class="playerChart"></div>
