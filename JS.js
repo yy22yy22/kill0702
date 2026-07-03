@@ -79,8 +79,6 @@ function drawTabletop(){
     let arc = 2 * Math.PI / playerNum;
     
     // 顺时针，1号在 1 点钟方向 (网页坐标系 Y向下正，X向右正)
-    // 12点钟为 -Math.PI / 2 (-90度)
-    // 1点钟为 -90度 + 30度(Math.PI / 6)
     let startAngle = -Math.PI / 2 + Math.PI / 6;
 
     for (let i = 0; i < playerNum; i++){
@@ -523,7 +521,7 @@ window.calcGaoFeng = function() {
 };
 
 // ==========================================
-// 全新嵌入机制：死亡管理与云社系统
+// 全新联动：死亡管理、云社系统与桌面动态UI
 // ==========================================
 function attachTabletopDeathEvents() {
     let numbers = document.getElementsByClassName('playerNumber');
