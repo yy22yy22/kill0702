@@ -87,7 +87,7 @@ function drawTabletop(){
         let x = Math.cos(angle);
         let y = Math.sin(angle);
         
-        // 只生成骨架结构，不写死背景色，全权交给 updateTabletopDeathVisuals 动态渲染
+        // 只生成骨架结构，全权交给 updateTabletopDeathVisuals 动态渲染
         content += "<div style='left: calc(" + x + " * (" + playerNum / 9 + " * 25% - 2.5rem) + 50% - 1rem); top: calc(" + y + " * (" + playerNum / 9 + " * 25% - 2.5rem) + 50% - 1rem);' class='playerNumber'>" + (i+1) + "</div>";
         content += "<div style='left: calc(" + (x * playerNum / 9) + " * 25% + 50% - 1.75rem); top: calc(" + (y * playerNum / 9) + " * 25% + 50% - 1.75rem);' class='playerAvatar'>" + p.name + "</div>";
     }
@@ -221,9 +221,12 @@ function beginNightZero(){
     autoGenerateSetupData();
     renderDMSetupInfo();
 
-    if(!document.getElementById('deadAndYunPanel')) {
-        initDeadAndYunUI();
+    // 【核心修复】：每次开局强制销毁旧的面板，重新生成，解决状态残留问题
+    let oldPanel = document.getElementById('deadAndYunPanel');
+    if (oldPanel) {
+        oldPanel.remove();
     }
+    initDeadAndYunUI();
 }
 
 function setGameState(){
