@@ -22,15 +22,20 @@
             text-align: center;
             position: relative;
         }
-        .playerTableWindow{
+       .playerTableWindow{
             width: 90%;
+            max-width: 400px;
             aspect-ratio: 3/4;
-            position: absolute;
+            position: fixed; /* 👈 核心修改：改为 fixed，相对于屏幕视口悬浮 */
             text-align: center;
-            left: 5%;
-            top: 20%;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%); /* 👈 确保它永远在屏幕正中间 */
             background: white;
-            border: black solid 1pt;
+            border: 2px solid #333;
+            z-index: 9999; /* 👈 确保层级极高，绝不会被任何东西遮挡 */
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3); /* 👈 加一点弹窗阴影，更有质感 */
+            border-radius: 10px; /* 圆角更好看 */
         }
         .playerChart{
             width: 100%;
